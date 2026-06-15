@@ -25,10 +25,16 @@ never uploaded.
 - **Copy / paste / stickers** — marquee-**copy** a region and **stamp** it elsewhere, or
   import any PNG as a **sticker** (auto-quantized to the character's palette) and stamp it.
 - **Edit in bulk** — every part is shared, so painting a part updates *every* frame that
-  reuses it automatically. The **⟳ all frames** toggle additionally applies a stroke/fill/
-  stamp to the same on-screen spot across the whole animation (great for a chest logo or a
-  facial mark). An **impact view** color-codes which parts are shared with other animations
-  (amber) vs unique to this one (blue), so you always know what an edit will affect.
+  reuses it automatically. On top of that:
+  - **⟳ all frames** applies a stroke/fill/stamp to the same spot across the whole animation
+    (great for a chest logo or a facial mark); **top-anchor** maps it relative to the sprite's
+    top-center so it tracks a head as the body bobs.
+  - **select region** (🙂 head / 👕 torso / 🦵 legs) selects all the parts of a body region
+    used in the current animation, so you can find and edit a feature across every frame.
+  - **↪ propagate edit** applies the part you just edited onto the other selected parts that
+    match it — handy for the near-duplicate frames of a feature.
+  - An **impact view** color-codes which parts are shared with other animations (amber) vs
+    unique to this one (blue), so you always know what an edit will affect.
 - **One-click bake** — writes the edited sprite back into `track03.bin` *in place*, with
   an automatic pristine `track03.bin.bak` made the first time (so you can always undo).
 - **Pixel-art bridge** — export parts/frames/animations as PNGs, edit in Aseprite/GIMP/
