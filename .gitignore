@@ -1,0 +1,39 @@
+# =============================================================================
+# BYOR — Bring Your Own ROM. NOTHING ROM-derived is ever committed.
+# A contributor supplies their OWN legally-owned MVC2 disc; the tools decode
+# sprite data from it into (ignored) local files. None of that is tracked.
+# =============================================================================
+
+# --- ROMs / disc images / tracks (copyright) ---
+*.gdi
+*.cdi
+*.chd
+*.iso
+*.cue
+*.nrg
+track*.bin
+*.raw
+roms/
+ROMs/
+
+# --- ROM-derived sprite data (generated locally from YOUR rom by tools/) ---
+web/test-atlas/
+PL*_edit.*
+PL*_lut.json
+PL*_asm.json
+PL*_parts.*
+PL*_idx.png
+PL*_sel*.png
+*.bak
+skin.json
+
+# --- but the animation CATALOGS are public metadata (NOT pixels) — keep them ---
+!web/anim/
+!web/anim/PL*.json
+
+# --- python / editor / OS ---
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/

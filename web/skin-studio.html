@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MvC2 Skin Studio</title>
+<style>
+  :root { --bg:#0d0e12; --panel:#15171d; --ink:#d7dae2; --dim:#7f8593; --line:#262a33; }
+  * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; }
+  header h1 { font-size:14px; margin:0; letter-spacing:.5px; } header .sub { color:var(--dim); font-size:12px; }
+  header a { color:#7fb0ff; text-decoration:none; margin-left:auto; }
+  .wrap { padding:16px; max-width:980px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+  .dim { color:var(--dim); }
+  .ss-row { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+  select, button { background:#232732; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:5px 11px; cursor:pointer; font:inherit; }
+  button:hover { background:#2c313e; }
+  .ss-main { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
+  .ss-pal { display:grid; grid-template-columns:repeat(4, 52px); gap:6px; }
+  .ss-sw { position:relative; width:52px; height:52px; border:1px solid var(--line); border-radius:6px;
+           display:flex; align-items:flex-start; justify-content:flex-start; font-size:10px; color:#000; padding:2px;
+           text-shadow:0 0 2px #fff; cursor:pointer; overflow:hidden;
+           background-image:linear-gradient(45deg,#333 25%,transparent 25%),linear-gradient(-45deg,#333 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#333 75%),linear-gradient(-45deg,transparent 75%,#333 75%);
+           background-size:10px 10px; background-position:0 0,0 5px,5px -5px,-5px 0; }
+  .ss-sw.edited { outline:2px solid #ffe878; }
+  .ss-sw input[type=color] { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; }
+  canvas.ss-prev { border:1px solid var(--line); background:#000; image-rendering:pixelated; }
+  .ss-sec { margin:16px 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); border-top:1px solid var(--line); padding-top:12px; }
+  .ss-paint { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+  .ss-parts { display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; width:300px; max-height:300px; overflow:auto; padding:6px; background:#0b0c10; border:1px solid var(--line); border-radius:6px; }
+  canvas.ss-thumb { border:1px solid #333; background:#15171d; cursor:pointer; image-rendering:pixelated; }
+  canvas.ss-thumb:hover { border-color:#7fb0ff; } canvas.ss-thumb.on { outline:2px solid #ffe878; } canvas.ss-thumb.edited { border-color:#5fd08a; }
+  canvas.ss-atlas { border:1px solid var(--line); background:#000; cursor:crosshair; image-rendering:pixelated; max-width:460px; }
+  canvas.ss-prev { cursor:grab; max-width:100%; }
+  canvas.ss-prev:active { cursor:grabbing; }
+  .ss-prevwrap { overflow:hidden; }
+  .ss-hint { background:#0e1b2e; border:1px solid #2a4870; border-left:3px solid #7fb0ff; border-radius:5px; padding:8px 12px; margin:8px 0 12px; font-size:12px; color:#a0bde8; line-height:1.5; }
+  .ss-hint b { color:#d8ecff; }
+  .ss-pwrap { display:flex; flex-direction:column; gap:8px; }
+  .ss-tools { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .ss-tools button { padding:4px 8px; font-size:12px; } .ss-tools button.on { background:#3a4150; outline:1px solid #ffe878; }
+  .ss-brush { display:grid; grid-template-columns:repeat(2, 36px); gap:3px; }
+  .ss-bsw { position:relative; width:36px; height:36px; border:1px solid var(--line); border-radius:3px; cursor:pointer;
+            background-image:linear-gradient(45deg,#333 25%,transparent 25%),linear-gradient(-45deg,#333 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#333 75%),linear-gradient(-45deg,transparent 75%,#333 75%);
+            background-size:8px 8px; background-position:0 0,0 4px,4px -4px,-4px 0; }
+  .ss-bsw.on { outline:2px solid #ffe878; }
+  .ss-bsw[data-erase] { border-color:#8a3333; }
+  .ss-bsw.edited { border-color:#5fd08a; }
+  .ss-canvas-row { display:flex; gap:12px; align-items:flex-start; margin-top:6px; }
+  .ss-pal-label { font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+  .ss-sep { display:inline-block; width:1px; height:16px; background:var(--line); margin:0 4px; vertical-align:middle; }
+  canvas.ss-edit { border:1px solid var(--line); background:#0b0c10; image-rendering:pixelated; cursor:crosshair; }
+  .ss-bake { margin-top:14px; color:var(--dim); }
+  .ss-bake code { color:#ffe878; background:#0b0c10; padding:2px 6px; border-radius:4px; }
+  ol { color:var(--dim); font-size:12px; } ol code { color:#cdd3df; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MvC2 · SKIN STUDIO</h1>
+  <span class="sub">edit palette → preview → bake into the GDI</span>
+  <a href="https://github.com/" target="_blank" rel="noopener">README ↗</a>
+</header>
+<div class="wrap">
+  <div class="card">
+    <div id="studio"></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <b>How it works</b>
+    <ol>
+      <li>The page <b>auto-loads</b> your character data (decoded once by <code>python tools/build_skin_studio_data.py &lt;track03.bin&gt;</code>). Pick a character, recolor swatches, <b>and/or</b> pick an animation → step frames → paint.</li>
+      <li>Hit <b>⬇ bake to ROM</b>. With <code>skin_server.py</code> running it patches <code>track03.bin</code> <b>in place</b> (a one-time pristine <code>track03.bin.bak</code> is made by the extract step, so you can always undo).</li>
+      <li>Load the <code>.gdi</code> in flycast — or burn / GDEMU for real Dreamcast.</li>
+    </ol>
+    <span class="dim" style="font-size:11px">Serve over <b>http://localhost</b>. Chrome/Edge can also bake without the server: click <b>📂 load track03.bin</b>, then <b>⬇ bake to ROM</b> (writes in place via the File System Access API). Nothing is ever uploaded.</span>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <b>Export frames &amp; animations</b>
+    <ol>
+      <li><b>⤓ frame</b> — export the current assembled frame as a PNG.</li>
+      <li><b>⤓ animation</b> — export the whole current animation as one sprite-sheet PNG (every frame, aligned to a shared box).</li>
+    </ol>
+    <span class="dim" style="font-size:11px">Great for reference, sharing, or opening in Aseprite/GIMP. You edit the sprite itself right here — paint on the frame and recolor the palette, then bake.</span>
+  </div>
+</div>
+<script type="module">
+  import { SkinStudio } from './panels/tile-editor.mjs?v=43';
+  new SkinStudio(document.getElementById('studio'));
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# Skin Studio Python pipeline — only one third-party dependency.
+Pillow>=9.0        # indexed-PNG encode/decode for the sprite-art bridge
