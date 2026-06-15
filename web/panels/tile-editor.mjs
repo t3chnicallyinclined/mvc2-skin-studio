@@ -116,12 +116,9 @@ export class SkinStudio {
             <label class="dim" style="font-size:11px" title="all-frames anchor: TOP-CENTER (tracks a head as the body bobs up/down) instead of absolute screen position"><input class="ss-aftop" type="checkbox"> top-anchor</label>
           </div>
           <div class="ss-tools ss-tools2" style="margin-top:4px;">
-            <span class="dim" style="font-size:11px" title="one-click coarse select of a body region (or use the ▣ region tool to drag a precise box). Selects parts used by this animation so you can edit the whole feature across all frames">quick select:</span>
-            <button class="ss-rg" data-rg="head" title="select all HEAD parts in this animation">🙂 head</button>
-            <button class="ss-rg" data-rg="torso" title="select all TORSO parts in this animation">👕 torso</button>
-            <button class="ss-rg" data-rg="legs" title="select all LEG parts in this animation">🦵 legs</button>
+            <span class="dim" style="font-size:11px">▣ <b>region</b> tool: drag a box over a feature (e.g. the head) → its parts appear at right → click one to edit it</span>
             <span class="ss-sep"></span>
-            <button class="ss-propagate" title="apply the ACTIVE part's edits to the other SELECTED parts that match it (same size + similar shape) — paint one head part, then propagate to the rest">↪ propagate edit</button>
+            <button class="ss-propagate" title="apply the ACTIVE part's edits to the other SELECTED parts that match it (same size + similar shape) — edit one head part, then propagate to the rest">↪ propagate edit</button>
           </div>
           <div class="ss-canvas-row">
             <div class="ss-pal-side">
@@ -151,6 +148,7 @@ export class SkinStudio {
                 <b style="font-size:11px; color:#a0bde8;">SELECTED PARTS</b>
                 <button class="ss-selclear" style="font-size:10px; padding:1px 6px;" title="clear selection">clear</button>
               </div>
+              <div class="dim" style="font-size:10px; margin:-2px 0 2px;">click a part to edit it — changes apply to every animation that uses it</div>
               <div class="ss-sellist" style="display:flex; flex-direction:column; gap:8px;"></div>
             </div>
             <div class="ss-previewpanel" style="display:none; flex-direction:column; gap:6px; width:200px; max-height:380px; padding:6px; background:#0b0c10; border:1px solid #262a33; border-radius:6px;">
@@ -222,7 +220,6 @@ export class SkinStudio {
     this._allFrames = false; this._afAnchor = 'abs';
     $('.ss-allframes').onchange = (e) => { this._allFrames = e.target.checked; this._clearFrameComps(); };
     $('.ss-aftop').onchange = (e) => { this._afAnchor = e.target.checked ? 'top' : 'abs'; this._clearFrameComps(); };
-    this.root.querySelectorAll('.ss-rg').forEach(b => b.onclick = () => this._selectRegion(b.dataset.rg));
     $('.ss-propagate').onclick = () => this._propagateEdit();
     $('.ss-zback').onclick = () => this._biasLayer(-1);
     $('.ss-zfront').onclick = () => this._biasLayer(1);
@@ -260,7 +257,6 @@ export class SkinStudio {
     this._stop(); this.cid = cid; this.painted = {}; this._origPix = {}; this._zBias = {}; this.fi = 0;
     if (this._selSet) this._selSet.clear(); if (this.selpanelEl) this.selpanelEl.style.display = 'none';   // clear selection on char change
     this._stopPreview(); if (this.previewEl) this.previewEl.style.display = 'none';   // close any open preview
-    this._regionParts = null; this._partRegion = null;   // region map is per-character
     this._undoStack = []; this._oc = null;
 
     let data = null;
@@ -414,8 +410,30 @@ export class SkinStudio {
       ctx.strokeRect(ox + (p.x - minx) * z, oy + (p.y - miny) * z, p.w * z, p.h * z);
     }
   }
-  // Side panel: one card per selected part — thumbnail + dims + a context gallery (full-frame
-  // thumbnails of every animation the part appears in, outlined + flip-badged, click to jump).
+  // Click-to-edit a part from the side panel: jump to a frame that shows it, SOLO it (so the
+  // canvas shows just that part), arm the pencil. The change applies to every frame & animation
+  // that uses this part (parts are shared). Untick "solo" to paint it in context.
+  _editPart(sel) {
+    let target = (this.cells || []).findIndex(c => {
+      const recs = this.asm[String((c.sprite_id) & 0x7fff)] || this.asm[String(c.sprite_id)];
+      return recs && recs.some(rr => rr.part === sel);
+    });
+    if (target < 0) {   // not in the current animation — jump to one that uses it
+      const groups = this._selGroups && this._selGroups[sel];
+      const g = groups && groups.size ? [...groups][0] : null;
+      const found = g != null ? this._findSidInGroup(g, sel) : null;
+      if (found) { this.grpEl.value = g; this._populateSubs(); this.subEl.value = found.subIdx; this._selectAnim(); this._renderAnimLinks(); target = found.cellIdx; }
+    }
+    this._activeLayer = sel; this._solo = true;
+    const sc = this.root.querySelector('.ss-solo'); if (sc) sc.checked = true;
+    this._setTool('pencil');
+    if (target >= 0) this._gotoFrame(target); else this._drawFrame();
+    if (this.layerEl) this.layerEl.value = String(sel);
+    this._renderSelPanel();
+    this.bakeEl.innerHTML = `<span class="dim">editing part ${sel} (soloed) — paint it; the change applies to EVERY frame &amp; animation that uses this part. Untick “solo” to see it in context.</span>`;
+  }
+  // Side panel: one card per selected part — clickable thumbnail (→ edit), dims, ✏ edit / × buttons,
+  // and a context gallery (full-frame thumbnails of every animation the part appears in).
   _renderSelPanel() {
     if (!this.sellistEl) return;
     this.sellistEl.innerHTML = '';
@@ -424,15 +442,21 @@ export class SkinStudio {
       const r = this.bundle && this.bundle.parts[sel];
       const row = document.createElement('div');
       row.style.cssText = `border:1px solid ${sel === this._activeLayer ? '#ff5fd0' : '#262a33'}; border-radius:5px; padding:5px; background:#15171d;`;
+      const editing = sel === this._activeLayer;
       const tc = document.createElement('canvas'); tc.width = 56; tc.height = 56;
-      tc.style.cssText = 'image-rendering:pixelated; background:#0b0c10; border:1px solid #262a33; display:block; margin:0 auto 4px;';
-      this._drawPartThumb(tc, sel); row.append(tc);
+      tc.title = 'click to edit this part';
+      tc.style.cssText = `image-rendering:pixelated; background:#0b0c10; border:1px solid ${editing ? '#ff5fd0' : '#262a33'}; display:block; margin:0 auto 4px; cursor:pointer;`;
+      this._drawPartThumb(tc, sel); tc.onclick = () => this._editPart(sel); row.append(tc);
       const info = document.createElement('div');
-      info.style.cssText = 'font-size:11px; color:#d7dae2; display:flex; justify-content:space-between; align-items:center;';
-      const lab = document.createElement('span'); lab.innerHTML = `part <b>${sel}</b>${r ? ` ${r.w}×${r.h}` : ''}`; info.append(lab);
+      info.style.cssText = 'font-size:11px; color:#d7dae2; display:flex; justify-content:space-between; align-items:center; gap:4px;';
+      const lab = document.createElement('span'); lab.innerHTML = `part <b>${sel}</b>${r ? ` ${r.w}×${r.h}` : ''}${editing ? ' <span style="color:#ff5fd0">✏</span>' : ''}`; info.append(lab);
+      const btns = document.createElement('span'); btns.style.cssText = 'display:flex; gap:4px;';
+      const edit = document.createElement('button'); edit.textContent = '✏ edit'; edit.title = 'edit this part (soloed) — applies to every animation that uses it';
+      edit.style.cssText = `font-size:10px; padding:1px 6px; ${editing ? 'background:#3a2740; outline:1px solid #ff5fd0;' : ''}`;
+      edit.onclick = () => this._editPart(sel);
       const rm = document.createElement('button'); rm.textContent = '×'; rm.title = 'deselect'; rm.style.cssText = 'font-size:11px; padding:0 6px;';
       rm.onclick = () => { this._selSet.delete(sel); if (this._activeLayer === sel) this._activeLayer = this._selSet.size ? [...this._selSet].pop() : null; this._renderSelPanel(); this._drawFrame(); };
-      info.append(rm); row.append(info);
+      btns.append(edit, rm); info.append(btns); row.append(info);
       // CONTEXT GALLERY: one small full-frame thumbnail per animation this part appears in,
       // with the part outlined + a flip badge (⇄ X-mirror, ⇅ Y-mirror), so you can see HOW the
       // part is reused (position/flip) before editing. Click → jump to that animation/frame.
@@ -630,45 +654,7 @@ export class SkinStudio {
       this.painted[sel][loc] = value;
     }
   }
-  // ---------- body-region grouping + propagate ----------
-  // Classify every part by its mean vertical position across all assemblies → head / torso / legs.
-  // Cheap, deterministic, computed once per character (lazy). Seeds "select all head parts".
-  _classifyRegions() {
-    if (this._regionParts) return this._regionParts;
-    const sum = {}, cnt = {}; let gMin = 1e9, gMax = -1e9;
-    for (const recs of Object.values(this.asm || {})) {
-      for (const r of recs) {
-        const pr = this.bundle.parts[r.part]; if (!pr) continue;
-        const pdy = r.flipy ? -(r.dy + pr.h) : r.dy;
-        sum[r.part] = (sum[r.part] || 0) + (pdy + pr.h / 2); cnt[r.part] = (cnt[r.part] || 0) + 1;
-        gMin = Math.min(gMin, pdy); gMax = Math.max(gMax, pdy + pr.h);
-      }
-    }
-    const span = Math.max(1, gMax - gMin); this._partRegion = {}; const rp = { head: [], torso: [], legs: [] };
-    for (const sel in sum) {
-      const ny = (sum[sel] / cnt[sel] - gMin) / span;   // 0 = top of body, 1 = bottom
-      // tuned vs Cable data: ny<0.20 isolates the head cluster (~19 parts in idle) without
-      // flooding with upper-torso/arms (ny<0.30 grabbed 105). Geometry-only, so it's a useful
-      // SEED, not gospel — the user refines with the selection panel + propagate.
-      const reg = ny < 0.20 ? 'head' : ny < 0.60 ? 'torso' : 'legs';
-      this._partRegion[+sel] = reg; rp[reg].push(+sel);
-    }
-    this._regionParts = rp; return rp;
-  }
-  // Select every part of a body region that's used by the CURRENT animation, into the selection.
-  _selectRegion(reg) {
-    if (!this.asm || !this.bundle) return;
-    this._classifyRegions();
-    const inAnim = this._grpSels && this._grpSels[this.grpEl && this.grpEl.value];
-    const sels = (this._regionParts[reg] || []).filter(s => !inAnim || inAnim.has(s));
-    this._selSet = new Set(sels);
-    this._activeLayer = sels.length ? sels[0] : null;
-    if (this.layerEl) this.layerEl.value = this._activeLayer != null ? String(this._activeLayer) : '';
-    this._renderSelPanel(); this._drawFrame();
-    this.bakeEl.innerHTML = sels.length
-      ? `<span class="dim">selected ${sels.length} ${reg} part(s) in this animation — edit one (it's the active layer), then ↪ propagate</span>`
-      : `<span class="dim">no ${reg} parts in this animation</span>`;
-  }
+  // ---------- region box-select + propagate ----------
   // Drag-select: box a region of the assembled frame, then select every part that falls in the
   // SAME region across EVERY frame of the animation. The box is normalized to the current frame
   // and re-applied per frame, so a head at the top is caught even as the body bobs. (Use it like
