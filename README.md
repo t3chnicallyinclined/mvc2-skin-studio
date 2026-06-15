@@ -30,8 +30,9 @@ never uploaded.
     (great for a chest logo or a facial mark); **top-anchor** maps it relative to the sprite's
     top-center so it tracks a head as the body bobs.
   - **▣ region** tool — drag a box over a feature (e.g. the head), like the copy marquee, and
-    it selects that feature's parts across *every frame* of the animation so you can edit it
-    everywhere. (One-click 🙂 head / 👕 torso / 🦵 legs buttons give a coarse quick-select.)
+    it selects that feature's parts across *every frame* of the animation. They appear in the
+    side panel; **click a part to edit it** (it solos so you paint just that part), and the
+    change applies to every animation that uses it.
   - **↪ propagate edit** applies the part you just edited onto the other selected parts that
     match it — handy for the near-duplicate frames of a feature.
   - An **impact view** color-codes which parts are shared with other animations (amber) vs
