@@ -112,6 +112,15 @@ export class SkinStudio {
             <label class="dim" style="font-size:11px"><input class="ss-solo" type="checkbox"> solo</label>
             <span class="ss-sep"></span>
             <label class="dim" style="font-size:11px" title="apply each stroke / fill / stamp to the SAME on-screen spot on EVERY frame of this animation. Best for stationary features (a chest mark, a facial detail on an idle); approximate when the body moves a lot."><input class="ss-allframes" type="checkbox"> ⟳ all frames</label>
+            <label class="dim" style="font-size:11px" title="all-frames anchor: TOP-CENTER (tracks a head as the body bobs up/down) instead of absolute screen position"><input class="ss-aftop" type="checkbox"> top-anchor</label>
+          </div>
+          <div class="ss-tools ss-tools2" style="margin-top:4px;">
+            <span class="dim" style="font-size:11px" title="select every part of a body region used by this animation, so you can edit the whole feature (e.g. the head) across all frames">select region:</span>
+            <button class="ss-rg" data-rg="head" title="select all HEAD parts in this animation">🙂 head</button>
+            <button class="ss-rg" data-rg="torso" title="select all TORSO parts in this animation">👕 torso</button>
+            <button class="ss-rg" data-rg="legs" title="select all LEG parts in this animation">🦵 legs</button>
+            <span class="ss-sep"></span>
+            <button class="ss-propagate" title="apply the ACTIVE part's edits to the other SELECTED parts that match it (same size + similar shape) — paint one head part, then propagate to the rest">↪ propagate edit</button>
           </div>
           <div class="ss-canvas-row">
             <div class="ss-pal-side">
@@ -209,8 +218,11 @@ export class SkinStudio {
     this.layerEl = $('.ss-layer'); this._activeLayer = null; this._solo = false; this._zBias = {};
     this.layerEl.onchange = () => { const v = this.layerEl.value; this._activeLayer = v === '' ? null : +v; this._drawFrame(); };
     $('.ss-solo').onchange = (e) => { this._solo = e.target.checked; this._drawFrame(); };
-    this._allFrames = false;
+    this._allFrames = false; this._afAnchor = 'abs';
     $('.ss-allframes').onchange = (e) => { this._allFrames = e.target.checked; this._clearFrameComps(); };
+    $('.ss-aftop').onchange = (e) => { this._afAnchor = e.target.checked ? 'top' : 'abs'; this._clearFrameComps(); };
+    this.root.querySelectorAll('.ss-rg').forEach(b => b.onclick = () => this._selectRegion(b.dataset.rg));
+    $('.ss-propagate').onclick = () => this._propagateEdit();
     $('.ss-zback').onclick = () => this._biasLayer(-1);
     $('.ss-zfront').onclick = () => this._biasLayer(1);
     $('.ss-zreset').onclick = () => { if (this._activeLayer == null) return; delete this._zBias[this._activeLayer]; this._drawFrame(); this._renderBake(); };
@@ -247,6 +259,7 @@ export class SkinStudio {
     this._stop(); this.cid = cid; this.painted = {}; this._origPix = {}; this._zBias = {}; this.fi = 0;
     if (this._selSet) this._selSet.clear(); if (this.selpanelEl) this.selpanelEl.style.display = 'none';   // clear selection on char change
     this._stopPreview(); if (this.previewEl) this.previewEl.style.display = 'none';   // close any open preview
+    this._regionParts = null; this._partRegion = null;   // region map is per-character
     this._undoStack = []; this._oc = null;
 
     let data = null;
@@ -594,12 +607,18 @@ export class SkinStudio {
   // enough. _paintAcrossFrames maps an ABSOLUTE sprite coord into each other frame and paints there.
   _buildFrameComps() { this._frameComps = (this.cells || []).map(c => this._compositeCell(c, false)); }
   _clearFrameComps() { this._frameComps = null; }
-  _paintAcrossFrames(absX, absY, value, undoMap) {
+  // px/py = current-frame-local composite coords. Two anchor modes:
+  //  'abs'  — same ABSOLUTE sprite coord on every frame (good for fixed-position features).
+  //  'top'  — same offset from each frame's TOP-CENTER (tracks a head as the body bobs).
+  _paintAcrossFrames(px, py, value, undoMap) {
     if (!this._frameComps) this._buildFrameComps();
+    const src = this.frame; if (!src) return;
+    const top = this._afAnchor === 'top', absX = src.ax + px, absY = src.ay + py;
     for (let fi = 0; fi < this._frameComps.length; fi++) {
       if (fi === this.fi) continue;
       const comp = this._frameComps[fi]; if (!comp) continue;
-      const lx = absX - comp.ax, ly = absY - comp.ay;
+      const lx = top ? px + ((comp.W - src.W) >> 1) : absX - comp.ax;
+      const ly = top ? py : absY - comp.ay;
       if (lx < 0 || ly < 0 || lx >= comp.W || ly >= comp.H) continue;
       const ci = ly * comp.W + lx;
       let sel = comp.ownSel[ci], loc = comp.ownLoc[ci];
@@ -609,6 +628,69 @@ export class SkinStudio {
       if (!this.painted[sel]) this.painted[sel] = this._partPix(sel).slice();
       this.painted[sel][loc] = value;
     }
+  }
+  // ---------- body-region grouping + propagate ----------
+  // Classify every part by its mean vertical position across all assemblies → head / torso / legs.
+  // Cheap, deterministic, computed once per character (lazy). Seeds "select all head parts".
+  _classifyRegions() {
+    if (this._regionParts) return this._regionParts;
+    const sum = {}, cnt = {}; let gMin = 1e9, gMax = -1e9;
+    for (const recs of Object.values(this.asm || {})) {
+      for (const r of recs) {
+        const pr = this.bundle.parts[r.part]; if (!pr) continue;
+        const pdy = r.flipy ? -(r.dy + pr.h) : r.dy;
+        sum[r.part] = (sum[r.part] || 0) + (pdy + pr.h / 2); cnt[r.part] = (cnt[r.part] || 0) + 1;
+        gMin = Math.min(gMin, pdy); gMax = Math.max(gMax, pdy + pr.h);
+      }
+    }
+    const span = Math.max(1, gMax - gMin); this._partRegion = {}; const rp = { head: [], torso: [], legs: [] };
+    for (const sel in sum) {
+      const ny = (sum[sel] / cnt[sel] - gMin) / span;   // 0 = top of body, 1 = bottom
+      // tuned vs Cable data: ny<0.20 isolates the head cluster (~19 parts in idle) without
+      // flooding with upper-torso/arms (ny<0.30 grabbed 105). Geometry-only, so it's a useful
+      // SEED, not gospel — the user refines with the selection panel + propagate.
+      const reg = ny < 0.20 ? 'head' : ny < 0.60 ? 'torso' : 'legs';
+      this._partRegion[+sel] = reg; rp[reg].push(+sel);
+    }
+    this._regionParts = rp; return rp;
+  }
+  // Select every part of a body region that's used by the CURRENT animation, into the selection.
+  _selectRegion(reg) {
+    if (!this.asm || !this.bundle) return;
+    this._classifyRegions();
+    const inAnim = this._grpSels && this._grpSels[this.grpEl && this.grpEl.value];
+    const sels = (this._regionParts[reg] || []).filter(s => !inAnim || inAnim.has(s));
+    this._selSet = new Set(sels);
+    this._activeLayer = sels.length ? sels[0] : null;
+    if (this.layerEl) this.layerEl.value = this._activeLayer != null ? String(this._activeLayer) : '';
+    this._renderSelPanel(); this._drawFrame();
+    this.bakeEl.innerHTML = sels.length
+      ? `<span class="dim">selected ${sels.length} ${reg} part(s) in this animation — edit one (it's the active layer), then ↪ propagate</span>`
+      : `<span class="dim">no ${reg} parts in this animation</span>`;
+  }
+  // Apply the ACTIVE part's pixel edits to the other SELECTED parts that match it (same size +
+  // ≥60% identical original pixels). Deterministic; one undoable step. Skips mismatched parts.
+  _propagateEdit() {
+    const src = this._activeLayer;
+    if (src == null) { this.bakeEl.innerHTML = '<span class="dim">select the part you edited (it becomes the active layer) first</span>'; return; }
+    const srcPix = this.painted[src], srcOrig = this._origPix[src] || this._partPix(src);
+    if (!srcPix) { this.bakeEl.innerHTML = '<span class="dim">the active part has no edits to propagate — paint it first</span>'; return; }
+    const delta = []; for (let i = 0; i < srcPix.length; i++) if (srcPix[i] !== srcOrig[i]) delta.push(i);
+    if (!delta.length) { this.bakeEl.innerHTML = '<span class="dim">no changes on the active part</span>'; return; }
+    const sp = this.bundle.parts[src], targets = [...this._selSet].filter(s => s !== src);
+    const undo = []; let applied = 0, skipped = 0;
+    for (const t of targets) {
+      const tp = this.bundle.parts[t]; if (!tp || tp.w !== sp.w || tp.h !== sp.h) { skipped++; continue; }
+      const tOrig = this._origPix[t] || this._partPix(t);
+      let same = 0; for (let i = 0; i < tOrig.length; i++) if (tOrig[i] === srcOrig[i]) same++;
+      if (same / tOrig.length < 0.6) { skipped++; continue; }
+      undo.push({ sel: t, pix: (this.painted[t] || tOrig).slice() });
+      if (!this.painted[t]) this.painted[t] = tOrig.slice();
+      for (const i of delta) this.painted[t][i] = srcPix[i];
+      applied++;
+    }
+    if (applied) { this._undoStack.push(undo); if (this._undoStack.length > 20) this._undoStack.shift(); this._drawFrame(); }
+    this.bakeEl.innerHTML = `<span class="dim">propagated to ${applied} matching part(s)${skipped ? ` · ${skipped} skipped (different size/shape — edit those by hand)` : ''}</span>`;
   }
 
   // populate the layer switch from the current frame's parts (back→front). Only rebuilds when the
@@ -791,7 +873,7 @@ export class SkinStudio {
         if (!strokeUndo.has(sel)) strokeUndo.set(sel, (this.painted[sel] || this._partPix(sel)).slice());
         if (!this.painted[sel]) this.painted[sel] = this._partPix(sel).slice();
         this.painted[sel][loc] = this.brush;
-        if (this._allFrames && this.frame) this._paintAcrossFrames(this.frame.ax + px, this.frame.ay + py, this.brush, strokeUndo);
+        if (this._allFrames && this.frame) this._paintAcrossFrames(px, py, this.brush, strokeUndo);
       }
     };
     const apply = (e) => {
@@ -861,7 +943,7 @@ export class SkinStudio {
       if (!undo.has(sel)) undo.set(sel, (this.painted[sel] || this._partPix(sel)).slice());
       if (!this.painted[sel]) this.painted[sel] = this._partPix(sel).slice();
       this.painted[sel][loc] = v;
-      if (this._allFrames) this._paintAcrossFrames(f.ax + px, f.ay + py, v, undo);
+      if (this._allFrames) this._paintAcrossFrames(px, py, v, undo);
     }
     if (this._allFrames) this._clearFrameComps();
     if (undo.size) { this._undoStack.push([...undo.entries()].map(([s, p]) => ({ sel: s, pix: p }))); if (this._undoStack.length > 20) this._undoStack.shift(); }
@@ -896,7 +978,7 @@ export class SkinStudio {
         if (!this.painted[sel]) this.painted[sel] = this._partPix(sel).slice();
         this.painted[sel][loc] = this.brush;
       }
-      if (this._allFrames) this._paintAcrossFrames(f.ax + cx, f.ay + cy, this.brush, undoMap);
+      if (this._allFrames) this._paintAcrossFrames(cx, cy, this.brush, undoMap);
       f.out[ci] = this.brush;   // mark visited
       st.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
