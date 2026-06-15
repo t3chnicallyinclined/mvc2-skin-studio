@@ -29,8 +29,9 @@ never uploaded.
   - **⟳ all frames** applies a stroke/fill/stamp to the same spot across the whole animation
     (great for a chest logo or a facial mark); **top-anchor** maps it relative to the sprite's
     top-center so it tracks a head as the body bobs.
-  - **select region** (🙂 head / 👕 torso / 🦵 legs) selects all the parts of a body region
-    used in the current animation, so you can find and edit a feature across every frame.
+  - **▣ region** tool — drag a box over a feature (e.g. the head), like the copy marquee, and
+    it selects that feature's parts across *every frame* of the animation so you can edit it
+    everywhere. (One-click 🙂 head / 👕 torso / 🦵 legs buttons give a coarse quick-select.)
   - **↪ propagate edit** applies the part you just edited onto the other selected parts that
     match it — handy for the near-duplicate frames of a feature.
   - An **impact view** color-codes which parts are shared with other animations (amber) vs
