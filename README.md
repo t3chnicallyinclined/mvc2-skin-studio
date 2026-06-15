@@ -71,7 +71,18 @@ $env:MVC2_ROM_DIR = "C:\roms\mvc2_us"
 ### 2. Decode your character data (one command)
 ```bash
 pip install -r requirements.txt
+```
+```bash
+# macOS / Linux
 python tools/build_skin_studio_data.py "$MVC2_ROM_DIR/track03.bin" --out web/test-atlas/chars
+```
+```powershell
+# Windows (PowerShell) — note $env: prefix
+python tools/build_skin_studio_data.py "$env:MVC2_ROM_DIR/track03.bin" --out web/test-atlas/chars
+```
+```bat
+:: Windows (CMD) — note %...%
+python tools/build_skin_studio_data.py "%MVC2_ROM_DIR%\track03.bin" --out web/test-atlas/chars
 ```
 This decodes every character into `web/test-atlas/chars/` (git-ignored) — `PLxx_edit.{png,json}`,
 `PLxx_lut.json`, `PLxx_asm.json` — and writes a **one-time pristine `track03.bin.bak`** next to your

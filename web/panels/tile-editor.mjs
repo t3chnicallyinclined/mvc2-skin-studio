@@ -103,6 +103,7 @@ export class SkinStudio {
             <button class="ss-sz" data-sz="4">4</button>
             <button class="ss-sz" data-sz="8">8</button>
             <label class="dim" style="font-size:11px">zoom <input class="ss-zoom" type="range" min="1" max="24" value="4"></label>
+            <button class="ss-flip" title="mirror the view to the other side (P1 ⇄ P2 facing) — display only, doesn't change the sprite or the bake">⇄ flip view</button>
             <label class="dim" style="font-size:11px"><input class="ss-boxes" type="checkbox" checked> part boxes</label>
             <span class="dim" style="font-size:10px" title="amber = part is shared with other animations (editing affects them); blue = unique to this animation">box: <span style="color:#ffaa46">▢ shared</span> <span style="color:#7fb0ff">▢ this anim</span></span>
             <span class="ss-sep"></span>
@@ -214,6 +215,8 @@ export class SkinStudio {
     this.frEl.oninput = () => this._gotoFrame(+this.frEl.value);
     this.zoomEl.oninput = () => { this._panX = null; this._render(); };   // recenter on zoom
     $('.ss-boxes').onchange = (e) => { this._showBoxes = e.target.checked; this._render(); };
+    this._viewFlip = false;
+    $('.ss-flip').onclick = (e) => { this._viewFlip = !this._viewFlip; e.target.classList.toggle('on', this._viewFlip); this.editC.style.transform = this._viewFlip ? 'scaleX(-1)' : ''; };
     this.layerEl = $('.ss-layer'); this._activeLayer = null; this._solo = false; this._zBias = {};
     this.layerEl.onchange = () => { const v = this.layerEl.value; this._activeLayer = v === '' ? null : +v; this._drawFrame(); };
     $('.ss-solo').onchange = (e) => { this._solo = e.target.checked; this._drawFrame(); };
@@ -861,7 +864,9 @@ export class SkinStudio {
       this.brushEl.appendChild(b);
     }
   }
-  _xy(e) { const r = this.editC.getBoundingClientRect(); const z = this._z || 1; const x = Math.floor(((e.clientX - r.left) * (this.editC.width / r.width) - this._ox) / z); const y = Math.floor(((e.clientY - r.top) * (this.editC.height / r.height) - this._oy) / z); const f = this.frame; return (f && x >= 0 && y >= 0 && x < f.W && y < f.H) ? [x, y] : null; }
+  // flip view = canvas is CSS-mirrored (scaleX(-1)); invert the X input so paint/hover hit the right pixel
+  _cssX(e, r) { return this._viewFlip ? (r.right - e.clientX) : (e.clientX - r.left); }
+  _xy(e) { const r = this.editC.getBoundingClientRect(); const z = this._z || 1; const x = Math.floor((this._cssX(e, r) * (this.editC.width / r.width) - this._ox) / z); const y = Math.floor(((e.clientY - r.top) * (this.editC.height / r.height) - this._oy) / z); const f = this.frame; return (f && x >= 0 && y >= 0 && x < f.W && y < f.H) ? [x, y] : null; }
   _editEvents() {
     let down = false;
     let strokeUndo = new Map(); // before-state of each part first touched this stroke
@@ -907,7 +912,7 @@ export class SkinStudio {
       down = true; apply(e);
     });
     this.editC.addEventListener('mousemove', (e) => {
-      if (panLast) { const r = this.editC.getBoundingClientRect(); this._panX += (e.clientX - panLast[0]) * (this.editC.width / r.width); this._panY += (e.clientY - panLast[1]) * (this.editC.height / r.height); panLast = [e.clientX, e.clientY]; this._render(); return; }
+      if (panLast) { const r = this.editC.getBoundingClientRect(); this._panX += (this._viewFlip ? -1 : 1) * (e.clientX - panLast[0]) * (this.editC.width / r.width); this._panY += (e.clientY - panLast[1]) * (this.editC.height / r.height); panLast = [e.clientX, e.clientY]; this._render(); return; }
       if (this._marq) { const p = this._xy(e); if (p) { this._marq[2] = p[0]; this._marq[3] = p[1]; this._render(); } return; }
       if (this.tool === 'stamp' && this._clip) { this._stampXY = this._xyRaw(e); this._render(); return; }
       if (down && this.tool === 'pencil') { apply(e); return; }
@@ -930,7 +935,7 @@ export class SkinStudio {
       down = false; panLast = null;
     });
   }
-  _xyRaw(e) { const r = this.editC.getBoundingClientRect(); const z = this._z || 1; return [Math.floor(((e.clientX - r.left) * (this.editC.width / r.width) - this._ox) / z), Math.floor(((e.clientY - r.top) * (this.editC.height / r.height) - this._oy) / z)]; }
+  _xyRaw(e) { const r = this.editC.getBoundingClientRect(); const z = this._z || 1; return [Math.floor((this._cssX(e, r) * (this.editC.width / r.width) - this._ox) / z), Math.floor(((e.clientY - r.top) * (this.editC.height / r.height) - this._oy) / z)]; }
   // Copy the rendered indices inside the marquee rect into the clipboard, then arm the stamp tool.
   _copyRegion(x0, y0, x1, y1) {
     const f = this.frame; if (!f) return;
