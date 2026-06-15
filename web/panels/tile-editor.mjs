@@ -87,6 +87,7 @@ export class SkinStudio {
             <button data-t="fill">🪣 fill</button>
             <button data-t="pick">💧 pick</button>
             <button data-t="pan">✋ pan</button>
+            <button data-t="region" title="drag a box over a body region (e.g. the head) to SELECT its parts across the whole animation — then edit / propagate">▣ region</button>
             <button data-t="marquee" title="drag a rectangle to copy it — then stamp it elsewhere">⬚ copy</button>
             <button data-t="stamp" title="stamp the copied region / imported sticker (click to place; right-click or Esc to cancel)">📌 stamp</button>
             <button class="ss-sticker" title="import a PNG as a sticker to stamp (any size — quantized to this character's palette)">🖼 sticker…</button>
@@ -115,7 +116,7 @@ export class SkinStudio {
             <label class="dim" style="font-size:11px" title="all-frames anchor: TOP-CENTER (tracks a head as the body bobs up/down) instead of absolute screen position"><input class="ss-aftop" type="checkbox"> top-anchor</label>
           </div>
           <div class="ss-tools ss-tools2" style="margin-top:4px;">
-            <span class="dim" style="font-size:11px" title="select every part of a body region used by this animation, so you can edit the whole feature (e.g. the head) across all frames">select region:</span>
+            <span class="dim" style="font-size:11px" title="one-click coarse select of a body region (or use the ▣ region tool to drag a precise box). Selects parts used by this animation so you can edit the whole feature across all frames">quick select:</span>
             <button class="ss-rg" data-rg="head" title="select all HEAD parts in this animation">🙂 head</button>
             <button class="ss-rg" data-rg="torso" title="select all TORSO parts in this animation">👕 torso</button>
             <button class="ss-rg" data-rg="legs" title="select all LEG parts in this animation">🦵 legs</button>
@@ -668,6 +669,33 @@ export class SkinStudio {
       ? `<span class="dim">selected ${sels.length} ${reg} part(s) in this animation — edit one (it's the active layer), then ↪ propagate</span>`
       : `<span class="dim">no ${reg} parts in this animation</span>`;
   }
+  // Drag-select: box a region of the assembled frame, then select every part that falls in the
+  // SAME region across EVERY frame of the animation. The box is normalized to the current frame
+  // and re-applied per frame, so a head at the top is caught even as the body bobs. (Use it like
+  // the copy tool — drag over the head, then edit/propagate.)
+  _selectRegionBox(x0, y0, x1, y1) {
+    const f = this.frame; if (!f) return;
+    const xa = Math.min(x0, x1), ya = Math.min(y0, y1), xb = Math.max(x0, x1), yb = Math.max(y0, y1);
+    if (xb - xa < 2 || yb - ya < 2) return;   // ignore a click / tiny drag (keeps current selection)
+    const nx0 = xa / f.W, ny0 = ya / f.H, nx1 = xb / f.W, ny1 = yb / f.H;
+    const sels = new Set(), cells = this.cells || [];
+    for (let i = 0; i < cells.length; i++) {
+      const comp = (i === this.fi) ? f : this._compositeCell(cells[i], false); if (!comp) continue;
+      const bx0 = nx0 * comp.W, by0 = ny0 * comp.H, bx1 = nx1 * comp.W, by1 = ny1 * comp.H;
+      for (const pb of comp.parts) {
+        const ox = Math.min(pb.x + pb.w, bx1) - Math.max(pb.x, bx0);
+        const oy = Math.min(pb.y + pb.h, by1) - Math.max(pb.y, by0);
+        const area = pb.w * pb.h;
+        if (ox > 0 && oy > 0 && area > 0 && (ox * oy) / area >= 0.35) sels.add(pb.sel);   // ≥35% of the part inside
+      }
+    }
+    this._selSet = sels; this._activeLayer = sels.size ? [...sels][0] : null;
+    if (this.layerEl) this.layerEl.value = this._activeLayer != null ? String(this._activeLayer) : '';
+    this._renderSelPanel(); this._drawFrame();
+    this.bakeEl.innerHTML = sels.size
+      ? `<span class="dim">selected ${sels.size} part(s) in this region across ${cells.length} frame(s) — pick ✏ pencil to edit (shared parts cascade), or ↪ propagate to the matches</span>`
+      : '<span class="dim">no parts in that region — drag a tighter box over the feature</span>';
+  }
   // Apply the ACTIVE part's pixel edits to the other SELECTED parts that match it (same size +
   // ≥60% identical original pixels). Deterministic; one undoable step. Skips mismatched parts.
   _propagateEdit() {
@@ -885,7 +913,7 @@ export class SkinStudio {
     this.editC.addEventListener('mousedown', (e) => {
       if (this.tool === 'pan') { panLast = [e.clientX, e.clientY]; return; }
       if (this.tool === 'select') { this._selectPartAt(e); return; }   // select-only — never paints
-      if (this.tool === 'marquee') { const p = this._xy(e); if (p) this._marq = [p[0], p[1], p[0], p[1]]; return; }
+      if (this.tool === 'marquee' || this.tool === 'region') { const p = this._xy(e); if (p) this._marq = [p[0], p[1], p[0], p[1]]; return; }
       if (this.tool === 'stamp') { if (e.button === 2) return; this._stampAt(e); return; }   // click to place
       if (!this.frame) return;
       strokeUndo = new Map(); // fresh per-stroke before-state collection
@@ -906,7 +934,7 @@ export class SkinStudio {
     this.editC.addEventListener('contextmenu', (e) => { if ((this.tool === 'stamp' || this._clip) && this._clip) { e.preventDefault(); this._clip = null; this._stampXY = null; this._render(); this.bakeEl.innerHTML = '<span class="dim">stamp cancelled</span>'; } });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this._clip) { this._clip = null; this._stampXY = null; this._render(); } });
     window.addEventListener('mouseup', () => {
-      if (this._marq) { const [a, b, c2, d2] = this._marq; this._marq = null; this._copyRegion(a, b, c2, d2); }
+      if (this._marq) { const [a, b, c2, d2] = this._marq; const wasRegion = this.tool === 'region'; this._marq = null; if (wasRegion) this._selectRegionBox(a, b, c2, d2); else this._copyRegion(a, b, c2, d2); }
       if (down && strokeUndo.size > 0) {
         this._undoStack.push([...strokeUndo.entries()].map(([s, p]) => ({ sel: s, pix: p })));
         if (this._undoStack.length > MAX_UNDO) this._undoStack.shift();
