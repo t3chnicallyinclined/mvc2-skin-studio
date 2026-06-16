@@ -180,6 +180,9 @@ export class SkinStudio {
     $('.ss-pv-close').onclick = () => { this.previewEl.style.display = 'none'; this._stopPreview(); };
     $('.ss-pv-edit').onclick = () => { if (this._pvGroup != null) { this.previewEl.style.display = 'none'; this._stopPreview(); this.grpEl.value = this._pvGroup; this._populateSubs(); } };
     this.brushEl = $('.ss-brush'); this.editC = $('.ss-edit'); this.ectx = this.editC.getContext('2d'); this.ectx.imageSmoothingEnabled = false;
+    // Stop the browser treating pen/touch drags on the canvas as scroll/zoom gestures (so a
+    // stylus draws instead of panning the page).
+    try { this.editC.style.touchAction = 'none'; } catch { /* older browsers */ }
     this.zoomEl = $('.ss-zoom'); this.bakeEl = $('.ss-bake'); this._romSrcEl = $('.ss-romsrc');
     this.penSize = 1;
 
@@ -906,8 +909,24 @@ export class SkinStudio {
   _xy(e) { const r = this.editC.getBoundingClientRect(); const z = this._z || 1; const x = Math.floor((this._cssX(e, r) * (this.editC.width / r.width) - this._ox) / z); const y = Math.floor(((e.clientY - r.top) * (this.editC.height / r.height) - this._oy) / z); const f = this.frame; return (f && x >= 0 && y >= 0 && x < f.W && y < f.H) ? [x, y] : null; }
   _editEvents() {
     let down = false;
+    let activePointerId = null;
     let strokeUndo = new Map(); // before-state of each part first touched this stroke
     const MAX_UNDO = 20;
+    // Pointer-event helpers: support mouse + pen/stylus + touch under one path.
+    const isPrimaryInput = (e) => !e.pointerType || e.isPrimary !== false;              // ignore extra multi-touch pointers
+    const isRightClick = (e) => e.button === 2 || e.buttons === 2;
+    const isStrokeContact = (e) => e.pointerType === 'pen'
+      ? e.pressure > 0 || (e.buttons & 1) === 1                                          // pen: tip pressure or barrel-as-primary
+      : e.buttons == null || (e.buttons & 1) === 1;
+    const capturePointer = (e) => {
+      if (e.pointerId == null) return;
+      if (this.editC.setPointerCapture) { try { this.editC.setPointerCapture(e.pointerId); } catch {} }
+      activePointerId = e.pointerId;
+    };
+    const releasePointer = (e) => {
+      if (e.pointerId != null && this.editC.releasePointerCapture) { try { this.editC.releasePointerCapture(e.pointerId); } catch {} }
+      if (e.pointerId == null || activePointerId === e.pointerId) activePointerId = null;
+    };
     const paintAt = (cx, cy) => {
       const f = this.frame;
       // pick: single point, no pen-size
@@ -938,30 +957,37 @@ export class SkinStudio {
       this._drawFrame(); this._renderBake();
     };
     let panLast = null;
-    this.editC.addEventListener('mousedown', (e) => {
+    const beginStroke = (e) => {
+      if (!this.frame) return false;
+      strokeUndo = new Map(); // fresh per-stroke before-state collection
+      if (this._allFrames) this._buildFrameComps();   // cache other frames for cross-frame cascade
+      down = true; apply(e); return true;
+    };
+    const start = (e) => {
+      if (!isPrimaryInput(e) || isRightClick(e)) return;
+      if (activePointerId != null && e.pointerId !== activePointerId) end(e, true);   // a new primary pointer pre-empts
+      e.preventDefault();
+      capturePointer(e);
       if (this.tool === 'pan') { panLast = [e.clientX, e.clientY]; return; }
       if (this.tool === 'select') { this._selectPartAt(e); return; }   // select-only — never paints
       if (this.tool === 'marquee' || this.tool === 'region') { const p = this._xy(e); if (p) this._marq = [p[0], p[1], p[0], p[1]]; return; }
-      if (this.tool === 'stamp') { if (e.button === 2) return; this._stampAt(e); return; }   // click to place
-      if (!this.frame) return;
-      strokeUndo = new Map(); // fresh per-stroke before-state collection
-      if (this._allFrames) this._buildFrameComps();   // cache other frames for cross-frame cascade
-      down = true; apply(e);
-    });
-    this.editC.addEventListener('mousemove', (e) => {
+      if (this.tool === 'stamp') { this._stampAt(e); return; }   // click to place
+      beginStroke(e);
+    };
+    const move = (e) => {
+      if (activePointerId != null && e.pointerId !== activePointerId) return;   // ignore non-active pointers (e.g. 2nd finger)
       if (panLast) { const r = this.editC.getBoundingClientRect(); this._panX += (this._viewFlip ? -1 : 1) * (e.clientX - panLast[0]) * (this.editC.width / r.width); this._panY += (e.clientY - panLast[1]) * (this.editC.height / r.height); panLast = [e.clientX, e.clientY]; this._render(); return; }
       if (this._marq) { const p = this._xy(e); if (p) { this._marq[2] = p[0]; this._marq[3] = p[1]; this._render(); } return; }
       if (this.tool === 'stamp' && this._clip) { this._stampXY = this._xyRaw(e); this._render(); return; }
+      // pen that begins moving with tip pressure before a pointerdown lands → start the stroke
+      if (!down && this.tool === 'pencil' && e.pointerType === 'pen' && isStrokeContact(e)) { capturePointer(e); beginStroke(e); return; }
       if (down && this.tool === 'pencil') { apply(e); return; }
       const f = this.frame; if (!f) return; const p = this._xy(e); let s = -1;
       if (p) { const ci = p[1] * f.W + p[0]; s = f.ownSel[ci]; if (s < 0) s = f.boxSel[ci]; }
       if (s !== this._hoverSel) { this._hoverSel = s; this._render(); }
-    });
-    this.editC.addEventListener('mouseleave', () => { let dirty = false; if (this._hoverSel !== -1) { this._hoverSel = -1; dirty = true; } if (this._stampXY) { this._stampXY = null; dirty = true; } if (dirty) this._render(); });
-    // right-click on the canvas while stamping cancels the clipboard
-    this.editC.addEventListener('contextmenu', (e) => { if ((this.tool === 'stamp' || this._clip) && this._clip) { e.preventDefault(); this._clip = null; this._stampXY = null; this._render(); this.bakeEl.innerHTML = '<span class="dim">stamp cancelled</span>'; } });
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this._clip) { this._clip = null; this._stampXY = null; this._render(); } });
-    window.addEventListener('mouseup', () => {
+    };
+    const end = (e, force = false) => {
+      if (!force && activePointerId != null && e.pointerId !== activePointerId) return;
       if (this._marq) { const [a, b, c2, d2] = this._marq; const wasRegion = this.tool === 'region'; this._marq = null; if (wasRegion) this._selectRegionBox(a, b, c2, d2); else this._copyRegion(a, b, c2, d2); }
       if (down && strokeUndo.size > 0) {
         this._undoStack.push([...strokeUndo.entries()].map(([s, p]) => ({ sel: s, pix: p })));
@@ -970,7 +996,25 @@ export class SkinStudio {
       }
       this._clearFrameComps();
       down = false; panLast = null;
-    });
+      if (force) activePointerId = null; else releasePointer(e);
+    };
+    this.editC.addEventListener('mouseleave', () => { let dirty = false; if (this._hoverSel !== -1) { this._hoverSel = -1; dirty = true; } if (this._stampXY) { this._stampXY = null; dirty = true; } if (dirty) this._render(); });
+    // right-click on the canvas while stamping cancels the clipboard
+    this.editC.addEventListener('contextmenu', (e) => { if ((this.tool === 'stamp' || this._clip) && this._clip) { e.preventDefault(); this._clip = null; this._stampXY = null; this._render(); this.bakeEl.innerHTML = '<span class="dim">stamp cancelled</span>'; } });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this._clip) { this._clip = null; this._stampXY = null; this._render(); } });
+    // Pointer Events unify mouse + pen/stylus + touch (with capture so strokes survive leaving
+    // the canvas); fall back to mouse events on browsers without PointerEvent.
+    if (window.PointerEvent) {
+      this.editC.addEventListener('pointerdown', start);
+      this.editC.addEventListener('pointermove', move);
+      this.editC.addEventListener('pointerup', end);
+      this.editC.addEventListener('pointercancel', end);
+      this.editC.addEventListener('lostpointercapture', end);
+    } else {
+      this.editC.addEventListener('mousedown', start);
+      this.editC.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    }
   }
   _xyRaw(e) { const r = this.editC.getBoundingClientRect(); const z = this._z || 1; return [Math.floor((this._cssX(e, r) * (this.editC.width / r.width) - this._ox) / z), Math.floor(((e.clientY - r.top) * (this.editC.height / r.height) - this._oy) / z)]; }
   // Copy the rendered indices inside the marquee rect into the clipboard, then arm the stamp tool.
