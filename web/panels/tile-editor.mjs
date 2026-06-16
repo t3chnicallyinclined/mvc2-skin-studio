@@ -40,10 +40,11 @@ const CHARS = [
 ];
 
 export class SkinStudio {
-  constructor(root, { atlasBase = './test-atlas/chars', animBase = './anim' } = {}) {
-    this.root = root; this.atlasBase = atlasBase; this.animBase = animBase;
-    this.cid = null; this.bank = 0;
-    this.orig = []; this.cur = []; this._key2idx = null;                       // palette
+  constructor(root, { atlasBase = './test-atlas/chars', animBase = './anim', palBase = './palnames' } = {}) {
+    this.root = root; this.atlasBase = atlasBase; this.animBase = animBase; this.palBase = palBase;
+    this.cid = null; this.bank = 0; this._bodyBank = 0;
+    this._banks = null; this._palByBank = {}; this._palNames = null;           // all palette banks + per-bank edits + PalMod labels
+    this.orig = []; this.cur = []; this._key2idx = null;                       // palette (current bank)
     this.bundle = null; this.bundleImg = null; this.bundleData = null;        // part atlas (RGBA pixels)
     this.anim = null; this.asm = null;
     this.cells = []; this.fi = 0; this.frame = null;                          // current animation + frame
@@ -124,6 +125,8 @@ export class SkinStudio {
           <div class="ss-canvas-row">
             <div class="ss-pal-side">
               <div class="dim ss-pal-label">palette · right-click to edit <button class="ss-copyhex" style="font-size:9px; padding:1px 5px; margin-left:4px; letter-spacing:0; text-transform:none;" title="copy all 16 colors as hex to the clipboard — paste into Aseprite / GIMP / any editor">⧉ hex</button></div>
+              <select class="ss-palbank" style="width:128px; font-size:11px; margin-bottom:5px; display:none;" title="which palette to edit: Main Color = the body; the rest are effect / projectile / super palettes (names from PalMod). Editing a palette applies everywhere the game uses it."></select>
+              <div class="ss-palbank-hint dim" style="font-size:10px; margin:-2px 0 5px; display:none; line-height:1.35;"></div>
               <div class="ss-brush"></div>
               <div class="ss-paltools" style="margin-top:10px; display:flex; flex-direction:column; gap:4px; font-size:10px; width:124px;">
                 <div class="dim" style="text-transform:uppercase; letter-spacing:1px;">recolor all</div>
@@ -180,7 +183,14 @@ export class SkinStudio {
     for (const [hex, nm] of CHARS) { const o = document.createElement('option'); o.value = hex; o.textContent = `PL${hex} ${nm}`; this.selEl.append(o); }
     this.selEl.value = '17'; // default to Cable (well-tested char with full atlas)
     this.selEl.onchange = () => this.loadChar(parseInt(this.selEl.value, 16));
-    $('.ss-reset').onclick = () => { this.cur = this.orig.map(c => c.slice()); this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders(); this._renderBrush(); this._render(); this._renderBake(); };
+    this.palBankEl = $('.ss-palbank'); this.palBankHintEl = $('.ss-palbank-hint');
+    this.palBankEl.onchange = () => this._setBank(+this.palBankEl.value);
+    $('.ss-reset').onclick = () => {   // revert ALL palette edits (every bank)
+      this._palByBank = {};
+      this.cur = ((this._banks && this._banks[String(this.bank)]) || this.orig).map(c => c.slice());
+      this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders();
+      this._populatePalBanks(); this._renderBrush(); this._render(); this._renderBake();
+    };
     this.hueEl = $('.ss-hue'); this.satEl = $('.ss-sat'); this.briEl = $('.ss-bri');
     [this.hueEl, this.satEl, this.briEl].forEach(el => el.oninput = () => this._applyPalXform());
     $('.ss-copyhex').onclick = () => this._copyPaletteHex();
@@ -272,21 +282,23 @@ export class SkinStudio {
         data = await this._loadCharFromFiles(cid);   // pre-generated bundle — no ROM picker needed
       }
       if (data) {
-        this.bank = data.lut.bodyBank || 0;
-        this.orig = (data.lut.banks[this.bank] || []).map(c => c.slice());
+        this._banks = data.lut.banks; this._bodyBank = data.lut.bodyBank || 0; this.bank = this._bodyBank; this._palByBank = {};
+        this.orig = (this._banks[String(this.bank)] || []).map(c => c.slice());
         this.cur = this.orig.map(c => c.slice());
         this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders();   // recolor-all baseline
-        this._key2idx = {}; this.orig.forEach((c, i) => { if (c[3] > 0) this._key2idx[`${c[0]},${c[1]},${c[2]}`] = i; });
+        // _key2idx is built from the BODY bank (parts were decoded in body colors) — it must NOT
+        // change when the user switches the displayed palette bank.
+        this._key2idx = {}; (this._banks[String(this._bodyBank)] || []).forEach((c, i) => { if (c[3] > 0) this._key2idx[`${c[0]},${c[1]},${c[2]}`] = i; });
         this.asm = data.asm.assemblies;
         this.bundle = data.bundle; this.bundleImg = data.bundleImg; this.bundleData = data.bundleData;
         if (!this.romReader && this._romSrcEl) this._romSrcEl.textContent = `📦 PL${HEX2(cid)} (pre-generated) · 📀 load ROM to bake in-browser`;
       } else {
-        this.orig = []; this.cur = []; this.asm = null; this.bundle = null; this.bundleData = null;
+        this.orig = []; this.cur = []; this.asm = null; this.bundle = null; this.bundleData = null; this._banks = null; this._palByBank = {};
         if (!this.romReader && this._romSrcEl) this._romSrcEl.textContent = 'no data — run build_skin_studio_data.py, or 📀 load ROM';
       }
     } catch (e) {
       console.error('loadChar failed:', e);
-      this.orig = []; this.cur = []; this.asm = null; this.bundle = null; this.bundleData = null;
+      this.orig = []; this.cur = []; this.asm = null; this.bundle = null; this.bundleData = null; this._banks = null; this._palByBank = {};
       if (this.romReader && this._romSrcEl) this._romSrcEl.textContent = `❌ ${e.message}`;
     }
 
@@ -296,8 +308,12 @@ export class SkinStudio {
       const bust = '?t=' + (this._t = (this._t || 1) + 1);
       try { this.anim = await (await fetch(`${this.animBase}/PL${HEX2(cid)}.json${bust}`)).json(); } catch { this.anim = null; }
     }
+    // PalMod-derived palette names (public metadata; only ~33 chars are documented). Optional.
+    this._palNames = null;
+    try { this._palNames = await (await fetch(`${this.palBase}/PL${HEX2(cid)}.json?t=${this._t || 1}`)).json(); } catch { this._palNames = null; }
     if (!fresh) this._loadDraft();
     this._buildGrpSels();                                         // which parts each animation group uses (for the link map)
+    this._populatePalBanks();
     this._renderBrush(); this._populateGroups(); this._renderBake();
   }
 
@@ -1019,11 +1035,79 @@ export class SkinStudio {
 
   // ---------- export ----------
   _partToDataURL(sel) {
-    const px = this.painted[sel], r = this.bundle.parts[sel]; const oc = new OffscreenCanvas(r.w, r.h); const ox = oc.getContext('2d'); const id = ox.createImageData(r.w, r.h); const d = id.data;
-    for (let p = 0; p < r.w * r.h; p++) { const c = this.cur[px[p]] || [0, 0, 0, 0]; if (px[p] === 0 || c[3] === 0) d[p * 4 + 3] = 0; else { d[p * 4] = c[0]; d[p * 4 + 1] = c[1]; d[p * 4 + 2] = c[2]; d[p * 4 + 3] = 255; } }
+    const px = this.painted[sel], r = this.bundle.parts[sel]; const bodyCur = this._bodyCur(); const oc = new OffscreenCanvas(r.w, r.h); const ox = oc.getContext('2d'); const id = ox.createImageData(r.w, r.h); const d = id.data;
+    for (let p = 0; p < r.w * r.h; p++) { const c = bodyCur[px[p]] || [0, 0, 0, 0]; if (px[p] === 0 || c[3] === 0) d[p * 4 + 3] = 0; else { d[p * 4] = c[0]; d[p * 4 + 1] = c[1]; d[p * 4 + 2] = c[2]; d[p * 4 + 3] = 255; } }
     ox.putImageData(id, 0, 0); return oc.convertToBlob({ type: 'image/png' }).then(b => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); }));
   }
   _diffPalette() { const o = {}; this.cur.forEach((c, i) => { if (JSON.stringify(c) !== JSON.stringify(this.orig[i])) o[i] = c; }); return o; }
+
+  // ---------- multi-bank palette (body + effect/projectile/super palettes) ----------
+  // The body's (edited) colors — what the part PNGs must be colored with for the bake, regardless
+  // of which palette bank is currently selected for VIEWING.
+  _bodyCur() {
+    if (this.bank === this._bodyBank) return this.cur;
+    return this._palByBank[this._bodyBank] || (this._banks && this._banks[String(this._bodyBank)]) || this.cur;
+  }
+  // Persist the current bank's working colors into _palByBank iff they differ from pristine.
+  _flushBank() {
+    if (!this._banks) return;
+    const pristine = this._banks[String(this.bank)] || [];
+    if (this.cur.some((c, i) => JSON.stringify(c) !== JSON.stringify(pristine[i]))) this._palByBank[this.bank] = this.cur.map(c => c.slice());
+    else delete this._palByBank[this.bank];
+  }
+  // All palette edits across every bank → { bank: { index: [r,g,b,a] } } (what bake_skin expects).
+  _diffPaletteAll() {
+    this._flushBank();
+    const out = {};
+    for (const [bk, colors] of Object.entries(this._palByBank)) {
+      const pristine = (this._banks && this._banks[String(bk)]) || [];
+      const d = {};
+      colors.forEach((c, i) => { if (JSON.stringify(c) !== JSON.stringify(pristine[i])) d[i] = c; });
+      if (Object.keys(d).length) out[bk] = d;
+    }
+    return out;
+  }
+  // Switch the active palette bank: save the current one, load the new one (edited copy if any,
+  // else pristine). The sprite re-renders in the new palette (a color-reference preview).
+  _setBank(b) {
+    if (!this._banks) return;
+    this._flushBank();
+    this.bank = b;
+    const pristine = this._banks[String(b)] || [];
+    this.cur = (this._palByBank[b] || pristine).map(c => c.slice());
+    this.orig = pristine.map(c => c.slice());
+    this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders();
+    this._populatePalBanks();
+    this._renderBrush(); this._render(); this._renderBake();
+  }
+  _palBankLabel(b) {
+    const nm = (this._palNames && this._palNames[b]) || (b === this._bodyBank ? 'Main Color (body)' : `bank ${b}`);
+    const short = nm.length > 40 ? nm.slice(0, 39) + '…' : nm;
+    return (this._palByBank[b] ? '● ' : '') + short;
+  }
+  // Fill the bank dropdown with the body bank + every PalMod-named palette (the meaningful ones;
+  // the thousands of duplicate/unused banks stay hidden). Hidden entirely if there's only the body.
+  _populatePalBanks() {
+    if (!this.palBankEl) return;
+    this._flushBank();
+    this.palBankEl.innerHTML = '';
+    if (!this._banks) { this.palBankEl.style.display = 'none'; this.palBankHintEl.style.display = 'none'; return; }
+    const set = new Set([this._bodyBank]);
+    for (const k of Object.keys(this._palNames || {})) set.add(+k);
+    for (const k of Object.keys(this._palByBank)) set.add(+k);   // also expose any edited bank
+    const banks = [...set].sort((a, b) => a - b);
+    for (const b of banks) { const o = document.createElement('option'); o.value = b; o.textContent = this._palBankLabel(b); this.palBankEl.append(o); }
+    this.palBankEl.value = String(this.bank);
+    this.palBankEl.style.display = banks.length > 1 ? '' : 'none';
+    this._updatePalBankHint();
+  }
+  _updatePalBankHint() {
+    if (!this.palBankHintEl) return;
+    if (this.bank === this._bodyBank || !this._banks) { this.palBankHintEl.style.display = 'none'; return; }
+    const nm = (this._palNames && this._palNames[this.bank]) || `bank ${this.bank}`;
+    this.palBankHintEl.innerHTML = `editing the <b>${nm}</b> palette — the sprite is shown in these colors for reference; the edit applies wherever the game uses this palette.`;
+    this.palBankHintEl.style.display = '';
+  }
 
   // ---------- frame / animation export ----------
   _download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href); }
@@ -1082,7 +1166,8 @@ export class SkinStudio {
   _draftKey() { return `mvc2-sks-PL${HEX2(this.cid)}`; }
   _saveDraft() {
     if (this.cid == null) return;
-    const draft = { palette: this._diffPalette(), painted: {}, zBias: this._zBias || {} };
+    // palette is now multi-bank { bank: { idx: rgba } }
+    const draft = { palette: this._diffPaletteAll(), painted: {}, zBias: this._zBias || {} };
     for (const [s, px] of Object.entries(this.painted)) draft.painted[s] = Array.from(px);
     try { localStorage.setItem(this._draftKey(), JSON.stringify(draft)); } catch {}
   }
@@ -1090,7 +1175,20 @@ export class SkinStudio {
     try {
       const raw = localStorage.getItem(this._draftKey()); if (!raw) return false;
       const { palette = {}, painted = {}, zBias = {} } = JSON.parse(raw);
-      for (const [i, c] of Object.entries(palette)) { const n = +i; if (n > 0 && n < this.cur.length) this.cur[n] = c; }
+      const vals = Object.values(palette);
+      if (vals.length && Array.isArray(vals[0])) {
+        // OLD flat draft { idx: rgba } → applies to the (body) bank we're on
+        for (const [i, c] of Object.entries(palette)) { const n = +i; if (n > 0 && n < this.cur.length) this.cur[n] = c; }
+      } else {
+        // NEW { bank: { idx: rgba } } → rebuild each edited bank's colors
+        for (const [bk, d] of Object.entries(palette)) {
+          const pristine = (this._banks && this._banks[String(bk)]) || [];
+          const colors = pristine.map(c => c.slice());
+          for (const [i, c] of Object.entries(d)) { const n = +i; if (n >= 0 && n < colors.length) colors[n] = c; }
+          this._palByBank[+bk] = colors;
+          if (+bk === this.bank) this.cur = colors.map(c => c.slice());
+        }
+      }
       for (const [s, arr] of Object.entries(painted)) this.painted[+s] = new Uint8Array(arr);
       this._zBias = {}; for (const [s, v] of Object.entries(zBias)) this._zBias[+s] = v;
       return Object.keys(palette).length > 0 || Object.keys(painted).length > 0;
@@ -1098,16 +1196,18 @@ export class SkinStudio {
   }
 
   _renderBake() {
-    const pe = Object.keys(this._diffPalette()).length, pp = Object.keys(this.painted).length;
-    this.bakeEl.innerHTML = (pe || pp) ? `<b>${pe}</b> color(s), <b>${pp}</b> painted part(s). Export, then:<br><code>python tools/bake_skin.py PL${HEX2(this.cid)}_skin.json</code>` : `<span class="dim">recolor a swatch or paint the sprite for PL${HEX2(this.cid)}</span>`;
+    const palAll = this._diffPaletteAll(); const banks = Object.keys(palAll).length;
+    const pe = Object.values(palAll).reduce((n, d) => n + Object.keys(d).length, 0), pp = Object.keys(this.painted).length;
+    const palTxt = pe ? `<b>${pe}</b> color(s)${banks > 1 ? ` across ${banks} palettes` : ''}` : '<b>0</b> color(s)';
+    this.bakeEl.innerHTML = (pe || pp) ? `${palTxt}, <b>${pp}</b> painted part(s). Export, then:<br><code>python tools/bake_skin.py PL${HEX2(this.cid)}_skin.json</code>` : `<span class="dim">recolor a swatch or paint the sprite for PL${HEX2(this.cid)}</span>`;
     this._saveDraft();
   }
   async _buildSkin() {
-    const skin = { char: `PL${HEX2(this.cid)}` }; const pe = this._diffPalette(); if (Object.keys(pe).length) skin.palette = { [this.bank]: pe };
+    const skin = { char: `PL${HEX2(this.cid)}` }; const pal = this._diffPaletteAll(); if (Object.keys(pal).length) skin.palette = pal;
     const sels = Object.keys(this.painted); if (sels.length) { skin.parts_png_b64 = {}; for (const s of sels) skin.parts_png_b64[s] = await this._partToDataURL(parseInt(s)); }
     return skin;
   }
-  _hasEdits() { return Object.keys(this._diffPalette()).length || Object.keys(this.painted).length; }
+  _hasEdits() { return Object.keys(this._diffPaletteAll()).length || Object.keys(this.painted).length; }
   async exportSkin() {
     const skin = await this._buildSkin();
     const blob = new Blob([JSON.stringify(skin)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `PL${HEX2(this.cid)}_skin.json`; a.click(); URL.revokeObjectURL(a.href);
@@ -1116,7 +1216,7 @@ export class SkinStudio {
   _buildEdits() {
     const edits = new Map();
     for (const s of Object.keys(this.painted)) { const r = this.bundle.parts[s]; edits.set(+s, rb.paintedToBlobPixels(this.painted[s], r.w, r.h)); }
-    const pe = this._diffPalette(); const palEdits = Object.keys(pe).length ? { [this.bank]: pe } : null;
+    const pal = this._diffPaletteAll(); const palEdits = Object.keys(pal).length ? pal : null;
     return { edits, palEdits };
   }
   async _loadRom() {
