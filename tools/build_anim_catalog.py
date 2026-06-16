@@ -28,7 +28,8 @@ def parse_cell(hexstr):
 
 def parse_group_file(path):
     """Return a list of sub-anims (each a list of cells), split on Ender 0x80, in document order."""
-    html = open(path, "r", errors="replace").read()
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        html = fh.read()
     subanims, cur = [], []
     for m in CELL_RE.finditer(html):
         c = parse_cell(m.group(1))
@@ -40,7 +41,8 @@ def parse_group_file(path):
 
 def group_names(distilled_path):
     if not os.path.exists(distilled_path): return {}, None
-    d = json.load(open(distilled_path, "r", errors="replace"))
+    with open(distilled_path, "r", encoding="utf-8", errors="replace") as fh:
+        d = json.load(fh)
     names = {}
     for g in d.get("anim_groups", []):
         gn = g.get("group_num");

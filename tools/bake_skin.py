@@ -134,7 +134,8 @@ def bake(skin, dst_dir=None, base_dir="."):
 
 
 def main():
-    skin = json.load(open(sys.argv[1]))
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        skin = json.load(fh)
     dst_dir = sys.argv[2] if len(sys.argv) > 2 else None   # default: in-place + .bak
     path, info = bake(skin, dst_dir, os.path.dirname(os.path.abspath(sys.argv[1])))
     print(info); print("baked + verified ->", path)
