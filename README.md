@@ -42,10 +42,12 @@ never uploaded.
     match it — handy for the near-duplicate frames of a feature.
   - An **impact view** color-codes which parts are shared with other animations (amber) vs
     unique to this one (blue), so you always know what an edit will affect.
-- **Save & reopen your work** — **💾 save project** writes your whole editable state
-  (palette edits across all banks + painted parts + layer order) to a small JSON you can
-  keep, back up, or share; **📂 open project** loads it back so you can keep editing. (The
-  editor also autosaves a draft per character to the browser between refreshes.)
+- **Save & reopen your work** — **💾 save project** writes your whole editable state to a
+  single JSON: **every character you've edited**, with each one's palette edits (all banks),
+  painted pixels, and layer order. **📂 open project** loads it back so you can keep editing
+  (switch characters to see each restored). One portable file — no zip, no folder to keep
+  together. (The editor also autosaves a draft per character to the browser between
+  refreshes; the project file is the copy you keep/share.)
 - **One-click bake** — writes the edited sprite back into `track03.bin` *in place*, with
   an automatic pristine `track03.bin.bak` made the first time (so you can always undo).
 - **Pixel-art bridge** — export parts/frames/animations as PNGs, edit in Aseprite/GIMP/
@@ -105,6 +107,11 @@ python tools/skin_server.py          # serves web/ + a /bake endpoint on http://
 Open **http://localhost:8000/skin-studio.html** — it **auto-loads** the character data you just
 decoded (sprites + animations appear immediately, no picker). Pick a character, recolor / paint,
 then **⬇ bake to ROM**.
+
+### 4. Save your work (so you can come back to it)
+Click **💾 save project** to download one JSON holding everything you've edited (across every
+character). Later, **📂 open project** loads it back and you continue where you left off. It's
+the portable copy you keep or share — the browser also autosaves a draft between refreshes.
 
 > Serve over **http://localhost** (a secure context). Opening the `.html` file directly
 > (`file://`) won't work.

@@ -1170,40 +1170,45 @@ export class SkinStudio {
   }
 
   // ---------- save / open a project file (portable, shareable, resume editing) ----------
-  // A project = your editable state: multi-bank palette edits + painted parts (raw indices) +
-  // layer order. Same shape as the autosave draft, but a real file you keep/back up/share.
+  // A project = your editable state for EVERY character you've touched: per-char multi-bank
+  // palette edits + painted parts (raw indices) + layer order, in ONE JSON file (no zip, no
+  // linked files). It reuses the autosave drafts (the editor already persists each character's
+  // work), so "save" gathers them and "open" scatters them back.
+  //   { format, v:2, active:"PL17", chars:{ "PL17":{palette,painted,zBias}, ... } }
+  _projHasEdits(d) { return d && ((d.painted && Object.keys(d.painted).length) || (d.palette && Object.keys(d.palette).length)); }
   _saveProject() {
     if (this.cid == null || !this.bundle) { this.bakeEl.innerHTML = '<span class="dim">load a character first</span>'; return; }
-    const proj = { format: 'mvc2-skin-studio-project', v: 1, char: `PL${HEX2(this.cid)}`,
-      palette: this._diffPaletteAll(), painted: {}, zBias: this._zBias || {} };
-    for (const [s, px] of Object.entries(this.painted)) proj.painted[s] = Array.from(px);
-    const colors = Object.values(proj.palette).reduce((n, d) => n + Object.keys(d).length, 0);
-    this._download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `PL${HEX2(this.cid)}_project.json`);
-    this.bakeEl.innerHTML = `<span class="dim">saved project — ${Object.keys(proj.painted).length} painted part(s), ${colors} color edit(s). Reopen anytime with 📂 open project.</span>`;
+    this._saveDraft();   // flush the current character's edits to its draft first
+    const chars = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i); if (!k || !k.startsWith('mvc2-sks-PL')) continue;
+      try { const d = JSON.parse(localStorage.getItem(k)); if (this._projHasEdits(d)) chars[k.replace('mvc2-sks-', '')] = { palette: d.palette || {}, painted: d.painted || {}, zBias: d.zBias || {} }; } catch {}
+    }
+    const n = Object.keys(chars).length;
+    if (!n) { this.bakeEl.innerHTML = '<span class="dim">nothing edited yet to save</span>'; return; }
+    const proj = { format: 'mvc2-skin-studio-project', v: 2, active: `PL${HEX2(this.cid)}`, chars };
+    const fname = n > 1 ? `mvc2_skin_project_${n}chars.json` : `${Object.keys(chars)[0]}_project.json`;
+    this._download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), fname);
+    this.bakeEl.innerHTML = `<span class="dim">saved project — ${n} character(s) (${Object.keys(chars).join(', ')}). Reopen anytime with 📂 open project.</span>`;
   }
   async _loadProject(file) {
     let proj;
     try { proj = JSON.parse(await file.text()); } catch { this.bakeEl.innerHTML = '<span class="dim">not a valid JSON file</span>'; return; }
     if (!proj || proj.format !== 'mvc2-skin-studio-project') { this.bakeEl.innerHTML = '<span class="dim">not a Skin Studio project file (use 📂 load track03.bin for a ROM)</span>'; return; }
-    const cid = parseInt(String(proj.char || 'PL00').replace(/^PL/i, ''), 16);
-    if (this.selEl) this.selEl.value = HEX2(cid);
-    await this.loadChar(cid, { fresh: true });          // fresh = don't merge the autosave draft
-    if (!this.bundle) { this.bakeEl.innerHTML = `<span class="dim">opened a ${proj.char} project but that character's data isn't available — run build_skin_studio_data.py</span>`; return; }
-    // apply the saved state on top of the freshly-loaded pristine character
-    this.painted = {}; this._palByBank = {};
-    for (const [bk, d] of Object.entries(proj.palette || {})) {
-      const pristine = (this._banks && this._banks[String(bk)]) || [];
-      const colors = pristine.map(c => c.slice());
-      for (const [i, c] of Object.entries(d)) { const n = +i; if (n >= 0 && n < colors.length) colors[n] = c; }
-      this._palByBank[+bk] = colors;
-      if (+bk === this.bank) this.cur = colors.map(c => c.slice());
+    // v2 = multi-character {chars:{...}}; v1 = single character {char, palette, painted, zBias}
+    let chars = proj.chars;
+    if (!chars) { const c = proj.char || `PL${HEX2(this.cid)}`; chars = { [c]: { palette: proj.palette || {}, painted: proj.painted || {}, zBias: proj.zBias || {} } }; proj.active = c; }
+    // scatter each character's state into its autosave draft, so switching characters restores it
+    for (const [c, st] of Object.entries(chars)) {
+      try { localStorage.setItem(`mvc2-sks-${c}`, JSON.stringify({ palette: st.palette || {}, painted: st.painted || {}, zBias: st.zBias || {} })); } catch {}
     }
-    this._palBase = this.cur.map(c => c.slice());
-    for (const [s, arr] of Object.entries(proj.painted || {})) this.painted[+s] = new Uint8Array(arr);
-    this._zBias = {}; for (const [s, v] of Object.entries(proj.zBias || {})) this._zBias[+s] = v;
+    const activeC = proj.active || Object.keys(chars)[0];
+    const cid = parseInt(String(activeC).replace(/^PL/i, ''), 16);
+    if (this.selEl) this.selEl.value = HEX2(cid);
     this._undoStack = [];
-    this._populatePalBanks(); this._renderBrush(); this._drawFrame(); this._renderBake();
-    this.bakeEl.innerHTML = `<span class="dim">opened ${proj.char} project — ${Object.keys(this.painted).length} painted part(s) restored. Keep editing, then bake.</span>`;
+    await this.loadChar(cid, { fresh: false });   // fresh:false → merges the draft we just wrote
+    const n = Object.keys(chars).length;
+    this.bakeEl.innerHTML = `<span class="dim">opened project — ${n} character(s) restored; now editing ${activeC}${n > 1 ? '. Switch characters to see the rest.' : '.'}</span>`;
   }
   // ---------- draft persistence (survives page refresh) ----------
   _draftKey() { return `mvc2-sks-PL${HEX2(this.cid)}`; }

@@ -65,6 +65,14 @@
   <div class="card">
     <div id="studio"></div>
   </div>
+  <div class="card" style="margin-top:14px; border-color:#2a4870; background:#0e1b2e;">
+    <b style="color:#d8ecff;">💾 Save your work</b>
+    <ol style="color:#a0bde8;">
+      <li><b>💾 save project</b> — downloads one <code>.json</code> with <b>everything you've edited</b> (every character's palette + painted pixels + layer order). Keep it, back it up, or share it.</li>
+      <li><b>📂 open project</b> — load that file back and keep editing right where you left off. Switch characters to see each one restored.</li>
+    </ol>
+    <span class="dim" style="font-size:11px">Your work also <b>autosaves</b> in this browser between refreshes — but the project file is the portable copy you actually keep. (<b>export skin.json</b> is different: that's the bake input for the CLI.)</span>
+  </div>
   <div class="card" style="margin-top:14px">
     <b>How it works</b>
     <ol>
@@ -84,7 +92,7 @@
   </div>
 </div>
 <script type="module">
-  import { SkinStudio } from './panels/tile-editor.mjs?v=50';
+  import { SkinStudio } from './panels/tile-editor.mjs?v=51';
   new SkinStudio(document.getElementById('studio'));
 </script>
 </body>
