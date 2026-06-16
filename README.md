@@ -255,6 +255,8 @@ community. None of this would exist without their decades of work:
 If you contributed MvC2 RE that's reflected here and want different wording or a link, open an
 issue — credit is owed and gladly corrected.
 
+See [CHANGELOG.md](CHANGELOG.md) for what's new.
+
 ---
 
 ## Legal
