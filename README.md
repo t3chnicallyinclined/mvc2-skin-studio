@@ -246,6 +246,11 @@ community. None of this would exist without their decades of work:
   palettes straight from your ROM — but PalMod is the prior art that proved out community
   palette editing for these games.
   → [zachd.com/mvc2](https://zachd.com/mvc2/) · [MvC2: Deconstructed](https://zachd.com/mvc2/resources/mvc2/) · [PalMod](https://github.com/Preppy/PalMod)
+- **rob2d (f8)** — author of **[ModNao](https://github.com/rob2d/modnao)** (the browser-based
+  Sega NAOMI / Dreamcast model & texture editor) — for the **stylus / pen / touch** drawing
+  support: the Pointer Events input path (pointer capture, pen-pressure contact, `touch-action`)
+  that lets you draw with a tablet/pen, not just a mouse.
+  → [github.com/rob2d](https://github.com/rob2d)
 
 If you contributed MvC2 RE that's reflected here and want different wording or a link, open an
 issue — credit is owed and gladly corrected.
