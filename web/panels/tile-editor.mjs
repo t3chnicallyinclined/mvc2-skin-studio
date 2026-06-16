@@ -123,7 +123,7 @@ export class SkinStudio {
           </div>
           <div class="ss-canvas-row">
             <div class="ss-pal-side">
-              <div class="dim ss-pal-label">palette · right-click to edit</div>
+              <div class="dim ss-pal-label">palette · right-click to edit <button class="ss-copyhex" style="font-size:9px; padding:1px 5px; margin-left:4px; letter-spacing:0; text-transform:none;" title="copy all 16 colors as hex to the clipboard — paste into Aseprite / GIMP / any editor">⧉ hex</button></div>
               <div class="ss-brush"></div>
               <div class="ss-paltools" style="margin-top:10px; display:flex; flex-direction:column; gap:4px; font-size:10px; width:124px;">
                 <div class="dim" style="text-transform:uppercase; letter-spacing:1px;">recolor all</div>
@@ -183,6 +183,7 @@ export class SkinStudio {
     $('.ss-reset').onclick = () => { this.cur = this.orig.map(c => c.slice()); this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders(); this._renderBrush(); this._render(); this._renderBake(); };
     this.hueEl = $('.ss-hue'); this.satEl = $('.ss-sat'); this.briEl = $('.ss-bri');
     [this.hueEl, this.satEl, this.briEl].forEach(el => el.oninput = () => this._applyPalXform());
+    $('.ss-copyhex').onclick = () => this._copyPaletteHex();
     $('.ss-pal-apply').onclick = () => { this._applyPalXform(); this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders(); };   // lock in as new baseline
     $('.ss-pal-reset-x').onclick = () => { this._resetPalSliders(); this._applyPalXform(); };
     $('.ss-swap-go').onclick = () => this._swapIndex(+$('.ss-swap-from').value, +$('.ss-swap-to').value);
@@ -791,6 +792,18 @@ export class SkinStudio {
   }
 
   // ---------- palette power tools ----------
+  // Copy the 16 palette colors as a hex list to the clipboard (index 0 = transparent). Falls
+  // back to printing the list inline if the clipboard API isn't available (non-secure context).
+  _copyPaletteHex() {
+    const lines = this.cur.map((c, i) => (i === 0 || !c || c[3] === 0)
+      ? `${i}: (transparent)`
+      : `${i}: #${c.slice(0, 3).map(v => v.toString(16).padStart(2, '0')).join('')}`);
+    const text = lines.join('\n');
+    const done = () => { this.bakeEl.innerHTML = `<span class="dim">copied ${this.cur.length} palette colors as hex to the clipboard</span>`; };
+    const fallback = () => { this.bakeEl.innerHTML = `<div class="dim">copy failed — here they are:</div><pre style="margin:4px 0; white-space:pre-wrap; color:#cdd3df; font-size:11px;">${text}</pre>`; };
+    try { (navigator.clipboard && navigator.clipboard.writeText(text) || Promise.reject()).then(done, fallback); }
+    catch { fallback(); }
+  }
   _resetPalSliders() { if (this.hueEl) { this.hueEl.value = 0; this.satEl.value = 0; this.briEl.value = 0; } }
   // Recolor ALL 16 colors at once: shift hue/sat/lum of the baseline palette into this.cur.
   // Index 0 (transparent) is left alone. Manual swatch edits fold into _palBase so they survive.
@@ -859,7 +872,8 @@ export class SkinStudio {
           this.brushEl.querySelectorAll('.ss-bsw')[i]?.querySelector('input[type=color]')?.click();
         });
       }
-      b.title = i === 0 ? 'erase (transparent — index 0)' : `index ${i}${edited ? ' · edited' : ''} · right-click to edit color`;
+      const hx = (i === 0 || c[3] === 0) ? '' : '#' + c.slice(0, 3).map(v => v.toString(16).padStart(2, '0')).join('');
+      b.title = i === 0 ? 'erase (transparent — index 0)' : `index ${i} · ${hx}${edited ? ' · edited' : ''} · left-click=paint, right-click=edit`;
       b.onclick = () => { this.brush = i; this._setTool('pencil'); this._renderBrush(); };
       this.brushEl.appendChild(b);
     }
