@@ -58,8 +58,11 @@ export class SkinStudio {
     this.root.innerHTML = `
       <div class="ss-row">
         <label>character <select class="ss-char"></select></label>
+        <button class="ss-saveproj" title="save your work (palette + painted parts + layer order) to a project file you can reopen later or share">💾 save project</button>
+        <button class="ss-openproj" title="open a saved project file and keep editing">📂 open project</button>
+        <input class="ss-proj-file" type="file" accept="application/json,.json" style="display:none">
         <button class="ss-reset" title="revert palette">reset palette</button>
-        <button class="ss-export">export skin.json</button>
+        <button class="ss-export" title="export a skin.json for the CLI bake (tools/bake_skin.py)">export skin.json</button>
         <button class="ss-bakerom" title="bake into a patched GDI (needs skin_server.py)">⬇ bake to ROM</button>
         <button class="ss-loadrom" title="load character data live from your track03.bin (and set it as the in-browser bake target)">📂 load track03.bin</button>
         <span class="ss-romsrc dim" style="font-size:11px">loading…</span>
@@ -202,6 +205,10 @@ export class SkinStudio {
     stickerFile.onchange = (e) => { const f = e.target.files?.[0]; if (f) this._importSticker(f); e.target.value = ''; };
     $('.ss-loadrom').onclick = () => this._loadRom();
     $('.ss-export').onclick = () => this.exportSkin();
+    $('.ss-saveproj').onclick = () => this._saveProject();
+    const projFile = $('.ss-proj-file');
+    $('.ss-openproj').onclick = () => projFile.click();
+    projFile.onchange = (e) => { const f = e.target.files?.[0]; if (f) this._loadProject(f); e.target.value = ''; };
     $('.ss-bakerom').onclick = () => this.bakeToRom();
     $('.ss-undo').onclick = () => { if (!this._undoStack?.length) return; const entry = this._undoStack.pop(); for (const { sel, pix } of entry) this.painted[sel] = pix; this._drawFrame(); this._renderBake(); };
     this.root.querySelectorAll('.ss-tools button[data-t]').forEach(b => b.onclick = () => this._setTool(b.dataset.t));
@@ -1162,6 +1169,42 @@ export class SkinStudio {
     this._download(await oc.convertToBlob({ type: 'image/png' }), `PL${HEX2(this.cid)}_${this._animLabel()}_sheet_${n}f_${W}x${H}.png`);
   }
 
+  // ---------- save / open a project file (portable, shareable, resume editing) ----------
+  // A project = your editable state: multi-bank palette edits + painted parts (raw indices) +
+  // layer order. Same shape as the autosave draft, but a real file you keep/back up/share.
+  _saveProject() {
+    if (this.cid == null || !this.bundle) { this.bakeEl.innerHTML = '<span class="dim">load a character first</span>'; return; }
+    const proj = { format: 'mvc2-skin-studio-project', v: 1, char: `PL${HEX2(this.cid)}`,
+      palette: this._diffPaletteAll(), painted: {}, zBias: this._zBias || {} };
+    for (const [s, px] of Object.entries(this.painted)) proj.painted[s] = Array.from(px);
+    const colors = Object.values(proj.palette).reduce((n, d) => n + Object.keys(d).length, 0);
+    this._download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `PL${HEX2(this.cid)}_project.json`);
+    this.bakeEl.innerHTML = `<span class="dim">saved project — ${Object.keys(proj.painted).length} painted part(s), ${colors} color edit(s). Reopen anytime with 📂 open project.</span>`;
+  }
+  async _loadProject(file) {
+    let proj;
+    try { proj = JSON.parse(await file.text()); } catch { this.bakeEl.innerHTML = '<span class="dim">not a valid JSON file</span>'; return; }
+    if (!proj || proj.format !== 'mvc2-skin-studio-project') { this.bakeEl.innerHTML = '<span class="dim">not a Skin Studio project file (use 📂 load track03.bin for a ROM)</span>'; return; }
+    const cid = parseInt(String(proj.char || 'PL00').replace(/^PL/i, ''), 16);
+    if (this.selEl) this.selEl.value = HEX2(cid);
+    await this.loadChar(cid, { fresh: true });          // fresh = don't merge the autosave draft
+    if (!this.bundle) { this.bakeEl.innerHTML = `<span class="dim">opened a ${proj.char} project but that character's data isn't available — run build_skin_studio_data.py</span>`; return; }
+    // apply the saved state on top of the freshly-loaded pristine character
+    this.painted = {}; this._palByBank = {};
+    for (const [bk, d] of Object.entries(proj.palette || {})) {
+      const pristine = (this._banks && this._banks[String(bk)]) || [];
+      const colors = pristine.map(c => c.slice());
+      for (const [i, c] of Object.entries(d)) { const n = +i; if (n >= 0 && n < colors.length) colors[n] = c; }
+      this._palByBank[+bk] = colors;
+      if (+bk === this.bank) this.cur = colors.map(c => c.slice());
+    }
+    this._palBase = this.cur.map(c => c.slice());
+    for (const [s, arr] of Object.entries(proj.painted || {})) this.painted[+s] = new Uint8Array(arr);
+    this._zBias = {}; for (const [s, v] of Object.entries(proj.zBias || {})) this._zBias[+s] = v;
+    this._undoStack = [];
+    this._populatePalBanks(); this._renderBrush(); this._drawFrame(); this._renderBake();
+    this.bakeEl.innerHTML = `<span class="dim">opened ${proj.char} project — ${Object.keys(this.painted).length} painted part(s) restored. Keep editing, then bake.</span>`;
+  }
   // ---------- draft persistence (survives page refresh) ----------
   _draftKey() { return `mvc2-sks-PL${HEX2(this.cid)}`; }
   _saveDraft() {

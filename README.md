@@ -42,6 +42,10 @@ never uploaded.
     match it — handy for the near-duplicate frames of a feature.
   - An **impact view** color-codes which parts are shared with other animations (amber) vs
     unique to this one (blue), so you always know what an edit will affect.
+- **Save & reopen your work** — **💾 save project** writes your whole editable state
+  (palette edits across all banks + painted parts + layer order) to a small JSON you can
+  keep, back up, or share; **📂 open project** loads it back so you can keep editing. (The
+  editor also autosaves a draft per character to the browser between refreshes.)
 - **One-click bake** — writes the edited sprite back into `track03.bin` *in place*, with
   an automatic pristine `track03.bin.bak` made the first time (so you can always undo).
 - **Pixel-art bridge** — export parts/frames/animations as PNGs, edit in Aseprite/GIMP/
