@@ -524,6 +524,7 @@ export class SkinStudio {
   }
   // central tool switch: highlight the active tool button + set the canvas cursor.
   _setTool(t) {
+    if (this._resetInput) this._resetInput();   // never carry a stuck stroke/pan/marquee across a mode switch
     this.tool = t;
     this.root.querySelectorAll('.ss-tools button[data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === t));
     if (this.editC) this.editC.style.cursor = t === 'select' ? 'pointer' : t === 'pan' ? 'grab' : 'crosshair';
@@ -965,7 +966,7 @@ export class SkinStudio {
     };
     const start = (e) => {
       if (!isPrimaryInput(e) || isRightClick(e)) return;
-      if (activePointerId != null && e.pointerId !== activePointerId) end(e, true);   // a new primary pointer pre-empts
+      if (down || (activePointerId != null && e.pointerId !== activePointerId)) this._resetInput();   // clear any stuck/abandoned prior interaction
       e.preventDefault();
       capturePointer(e);
       if (this.tool === 'pan') { panLast = [e.clientX, e.clientY]; return; }
@@ -975,7 +976,9 @@ export class SkinStudio {
       beginStroke(e);
     };
     const move = (e) => {
-      if (activePointerId != null && e.pointerId !== activePointerId) return;   // ignore non-active pointers (e.g. 2nd finger)
+      // Only filter other pointers WHILE drawing (ignore a 2nd finger mid-stroke). When idle,
+      // never filter — a stale activePointerId must not block the pen from hovering/resuming.
+      if (down && activePointerId != null && e.pointerId !== activePointerId) return;
       if (panLast) { const r = this.editC.getBoundingClientRect(); this._panX += (this._viewFlip ? -1 : 1) * (e.clientX - panLast[0]) * (this.editC.width / r.width); this._panY += (e.clientY - panLast[1]) * (this.editC.height / r.height); panLast = [e.clientX, e.clientY]; this._render(); return; }
       if (this._marq) { const p = this._xy(e); if (p) { this._marq[2] = p[0]; this._marq[3] = p[1]; this._render(); } return; }
       if (this.tool === 'stamp' && this._clip) { this._stampXY = this._xyRaw(e); this._render(); return; }
@@ -987,7 +990,7 @@ export class SkinStudio {
       if (s !== this._hoverSel) { this._hoverSel = s; this._render(); }
     };
     const end = (e, force = false) => {
-      if (!force && activePointerId != null && e.pointerId !== activePointerId) return;
+      if (!force && down && activePointerId != null && e.pointerId !== activePointerId) return;
       if (this._marq) { const [a, b, c2, d2] = this._marq; const wasRegion = this.tool === 'region'; this._marq = null; if (wasRegion) this._selectRegionBox(a, b, c2, d2); else this._copyRegion(a, b, c2, d2); }
       if (down && strokeUndo.size > 0) {
         this._undoStack.push([...strokeUndo.entries()].map(([s, p]) => ({ sel: s, pix: p })));
@@ -997,6 +1000,17 @@ export class SkinStudio {
       this._clearFrameComps();
       down = false; panLast = null;
       if (force) activePointerId = null; else releasePointer(e);
+    };
+    // Hard reset of all transient input state — used on tool switch and to clear a stuck/abandoned
+    // interaction (e.g. a pen stroke whose pointerup was lost). Commits any in-progress stroke to undo.
+    this._resetInput = (commit = true) => {
+      if (commit && down && strokeUndo.size > 0) {
+        this._undoStack.push([...strokeUndo.entries()].map(([s, p]) => ({ sel: s, pix: p })));
+        if (this._undoStack.length > MAX_UNDO) this._undoStack.shift();
+      }
+      strokeUndo = new Map(); this._clearFrameComps();
+      if (activePointerId != null && this.editC.releasePointerCapture) { try { this.editC.releasePointerCapture(activePointerId); } catch {} }
+      down = false; panLast = null; this._marq = null; activePointerId = null;
     };
     this.editC.addEventListener('mouseleave', () => { let dirty = false; if (this._hoverSel !== -1) { this._hoverSel = -1; dirty = true; } if (this._stampXY) { this._stampXY = null; dirty = true; } if (dirty) this._render(); });
     // right-click on the canvas while stamping cancels the clipboard
@@ -1009,7 +1023,10 @@ export class SkinStudio {
       this.editC.addEventListener('pointermove', move);
       this.editC.addEventListener('pointerup', end);
       this.editC.addEventListener('pointercancel', end);
-      this.editC.addEventListener('lostpointercapture', end);
+      // NOTE: deliberately NOT binding 'lostpointercapture' to end — some browsers drop pointer
+      // capture spuriously mid-pen-stroke (palm rejection / pen leaving range), which would kill
+      // the stroke even though the pen is still down. Capture loss alone shouldn't end drawing;
+      // pointerup / pointercancel are the real terminators.
     } else {
       this.editC.addEventListener('mousedown', start);
       this.editC.addEventListener('mousemove', move);

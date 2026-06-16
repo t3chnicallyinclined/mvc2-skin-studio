@@ -3,6 +3,17 @@
 All notable changes to MvC2 Skin Studio. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are `YYYY-MM-DD`.
 
+## 2026-06-16 (later)
+
+### Fixed
+- **Stylus could stop drawing mid-session** (clicking/tap still worked, hover still
+  highlighted parts). Cause: a spurious pointer-capture loss (palm rejection / pen leaving
+  range) ended the stroke while the pen was still down, and a stale `activePointerId` then
+  blocked it from resuming. Fixes: pointer-id guards now only apply *while actively drawing*
+  (a stale id can't block an idle/hovering pen); `lostpointercapture` no longer ends a stroke
+  (only `pointerup` / `pointercancel` do); and switching tools/modes now hard-resets input
+  state so nothing carries over stuck. (Reported by rob2d.)
+
 ## 2026-06-16
 
 ### Added — editing tools
