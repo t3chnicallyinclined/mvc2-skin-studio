@@ -16,8 +16,13 @@ never uploaded.
 ## What it does
 
 - **Palette editor** — recolor any of a character's 16 colors; see it live on the sprite.
-  Plus **recolor-all** (shift hue / saturation / luminance of the whole palette at once)
-  and **swap N→M** (repaint every pixel of one color index to another, across all parts).
+  Plus **recolor-all** (shift hue / saturation / luminance of the whole palette at once),
+  **swap N→M** (repaint every pixel of one color index to another, across all parts), and
+  **⧉ hex** (copy all 16 colors as hex for pasting into Aseprite/GIMP).
+- **Every palette, not just the body** — a character's DAT holds its whole palette space
+  (body + effect / projectile / super palettes). A **bank selector** lets you edit any of
+  them, labeled with names from [PalMod](https://github.com/Preppy/PalMod) ("Viper Beam",
+  "Hyper Viper Beam", …); the bake writes every palette you touch.
 - **Pixel editor** — pick an animation, step frame-by-frame, and paint on the fully
   assembled sprite. Tools: **select** (default — click to inspect a part, never paints),
   pencil, fill, pick, pan, brush sizes, undo, per-part boxes, layer order (send back /
@@ -168,6 +173,7 @@ your track03.bin ─► build_skin_studio_data.py ─► web/test-atlas/chars/PL
 | `bake_skin.py` | The **server/CLI bake**. Takes a `skin.json` (palette edits + pixel/part overrides) and edits `track03.bin` **in place** after a one-time `track03.bin.bak` (or writes a patched copy if you pass an output dir). Used by `skin_server.py`. |
 | `skin_server.py` | The local **dev server** — serves `web/` and accepts `POST /bake` so the editor can bake via Python (the in-place + `.bak` fallback for non-Chromium browsers). |
 | `build_anim_catalog.py` | Regenerates `web/anim/PLxx.json` from the public anotak corpus. The catalogs are already shipped; you only need this to rebuild them (requires the anotak cache). |
+| `import_palmod_names.py` | Parses [PalMod](https://github.com/Preppy/PalMod)'s MVC2 descriptions into `web/palnames/PLxx.json` — the per-palette names ("Viper Beam", etc.) the editor's bank selector shows. Already shipped (public names, no game data); rerun only to refresh from PalMod. |
 | `diag_baked_rom.py` | **Diagnostic.** Diffs a baked `track03.bin` against its `.bak`, finds which character changed, and strictly re-validates every sprite part the way the real SH4 decoder reads it — flags anything that would corrupt on hardware. |
 
 ### `skin.json` (for the CLI / pixel-art bridge)
