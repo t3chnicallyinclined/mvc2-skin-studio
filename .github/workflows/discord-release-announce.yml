@@ -12,6 +12,7 @@ jobs:
         env:
           ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_ANNOUNCE }}
           FIRMWARE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_FIRMWARE }}
+          GENERAL_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_GENERAL }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
           RELEASE_NAME: ${{ github.event.release.name }}
@@ -33,3 +34,4 @@ jobs:
           }
           post "$ANNOUNCE_WEBHOOK" "#announcements"
           post "$FIRMWARE_WEBHOOK" "#firmware"
+          post "$GENERAL_WEBHOOK" "#general"
