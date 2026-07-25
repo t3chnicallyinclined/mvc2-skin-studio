@@ -1,7 +1,8 @@
 name: release
 
 # Push a version tag (e.g. v0.1.0) to build installers for all three OSes and attach them to a
-# GitHub Release. The frontend is staged into src-tauri/wwwroot by build.rs (pure Rust, no Node/Python).
+# GitHub Release. The frontend is staged into src-tauri/wwwroot by scripts/stage-frontend.mjs
+# (Tauri's beforeBuildCommand — runs before the frontendDist existence check), excluding test-atlas.
 on:
   push:
     tags:
@@ -60,14 +61,19 @@ jobs:
             - **macOS** — `.dmg` (universal). Unsigned: **right-click → Open** the first time.
             - **Linux** — `.AppImage` or `.deb`
 
-            Then: **launch → 📂 load track03.bin → edit → ⬇ bake to ROM**. Loading the ROM decodes every character **in-app** — no Python, no server, no pre-processing.
+            Then: **launch → 📂 load ROM → edit → ⬇ bake to ROM**. Loading the ROM decodes every character **in-app** — no Python, no server, no pre-processing.
+
+            ### New in this update
+            - **🗂 Projects & version history** — your work autosaves into named projects that reopen where you left off, with a rolling version history you can **roll back to** anytime.
+            - **Safe resets** — every reset now confirms, **saves a restorable version first**, and the pixel resets are **Ctrl+Z-undoable** (no more wiping every animation on a misclick).
+            - **Load your ROM however you have it** — **📂 load ROM** accepts a **zipped GDI (.zip)**, a **.gdi**, an **.iso**, or **track03.bin**, and auto-extracts / finds the data track for you.
 
             ### Features
             - **Editor** — Aseprite-style layout (tool rail, palette dock, responsive canvas, contextual options, live preview + navigator minimap, frame timeline); paint on the assembled animated sprite; shared-part edits ripple across every frame with an amber/blue impact view.
             - **Tools** — pencil, fill (solid / dither / dithered gradient), pick, eraser, pan; line / rectangle / ellipse; marquee copy → stamp (flip/rotate); PNG stickers; region-select across an animation; propagate; undo + redo; keyboard shortcuts; symmetry (with axis guide); pixel-perfect pencil; shading ink; visual brush sizes + a live brush cursor; move/nudge.
             - **Colour & palette** — FG/BG chip (X to swap), right-click swatch to recolour live, recolor-all (HSL), swap N→M, shading ramp, alt-costume, import/export (`.hex`/`.gpl`/`.pal`/PNG), palette-from-image, all palette banks (PalMod names).
             - **Animation & view** — frame timeline, live looping preview, onion skin (±N), playback speed, scroll-zoom to cursor, fit/1×, grid, diff view, flip, reference-image overlay, focus mode, right/middle/space pan.
-            - **Save / export** — multi-character project save/open + autosave; export frame PNG / animation sheet / **animated GIF** / skin.json / palette; one-click **bake to ROM** in place with an automatic `track03.bin.bak`.
+            - **Save / export** — named **projects with autosave + version history** (roll back anytime); import/export a portable project file; export frame PNG / animation sheet / **animated GIF** / skin.json / palette; one-click **bake to ROM** in place with an automatic `track03.bin.bak`.
             - **Cross-platform** — native Windows / macOS / Linux (Tauri).
 
             Full details in the [CHANGELOG](https://github.com/t3chnicallyinclined/mvc2-skin-studio/blob/master/CHANGELOG.md).
