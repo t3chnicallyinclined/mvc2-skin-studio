@@ -3,6 +3,30 @@
 All notable changes to MvC2 Skin Studio. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are `YYYY-MM-DD`.
 
+## 2026-07-24 (later)
+
+### Added — never lose your work: projects, versions & safe resets
+- **Projects & version history** (new **🗂 projects** button) — your work now lives in named
+  **projects** that **autosave** continuously and persist between launches (in the app / browser).
+  Create, rename, switch, and delete projects to keep different skins separate, and **reopen right
+  where you left off**. Each project keeps a rolling **version history** you can **roll back to**
+  at any time. Backed by a small, unit-tested store (`web/projects.mjs`); a "state" is just the
+  edits (palette diffs + painted parts + layer order), never sprite/ROM bytes, so keeping 30
+  versions stays cheap. The old 💾/📂 buttons are now **export / import** of a portable project
+  file (for backups or sharing) alongside the new in-app projects.
+- **Reset is no longer destructive** — the biggest footgun (**↺ all px** used to wipe every painted
+  part across every animation *and* clear the undo stack). Now every reset (all-pixels, frame
+  pixels, and revert-palette) **confirms first**, **saves a version** you can restore, and the pixel
+  resets are **undoable with Ctrl+Z**. So a lot of work across many animations can't vanish on a
+  misclick.
+
+### Added — load your ROM however you have it (desktop)
+- **📂 load ROM** now accepts a **zipped GDI (`.zip`)**, a **`.gdi`**, a loose **`.iso`**, or
+  **`track03.bin`** directly — it **auto-extracts** a zip and **finds the MvC2 data track for you**
+  (validated by its ISO-9660 signature, preferring `track03.bin`), so there's no manual unzipping or
+  hunting for the right file. Backed by a new Rust `rom_prepare` command (zip extraction happens
+  once, to a sibling folder that's re-used next time).
+
 ## 2026-07-24
 
 ### Changed — UX pass (more intuitive layout)

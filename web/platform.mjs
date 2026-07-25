@@ -19,7 +19,10 @@ const WEB_TYPES = [{
   accept: { 'application/octet-stream': ['.bin'] },
 }];
 
-// Pick the ROM. Returns an FS-Access-shaped handle, or null if the user cancelled.
+// Pick the ROM. Returns an FS-Access-shaped handle, or null if the user cancelled (or, on
+// desktop, if the pick couldn't be resolved to a data track — the status line shows why).
+// Desktop accepts whatever a Dreamcast dump usually is — a zipped GDI, a .gdi, the raw
+// track03.bin, or a loose .iso — and `rom_prepare` (Rust) extracts/locates the real data track.
 export async function pickRomHandle() {
   if (!isTauri) {
     const [h] = await window.showOpenFilePicker({ mode: 'readwrite', types: WEB_TYPES });
@@ -27,13 +30,22 @@ export async function pickRomHandle() {
   }
   const { invoke } = window.__TAURI__.core;
   const { open } = window.__TAURI__.dialog;
-  const path = await open({
+  const picked = await open({
     multiple: false,
     directory: false,
-    filters: [{ name: 'GDI data track', extensions: ['bin'] }],
+    filters: [{ name: 'MvC2 ROM — track03.bin, .gdi or .zip', extensions: ['bin', 'gdi', 'zip', 'iso', 'img'] }],
   });
-  if (!path) return null;                       // cancelled
-  return makeTauriHandle(String(path), invoke);
+  if (!picked) return null;                     // cancelled
+  const path = String(picked);
+  const st = (typeof document !== 'undefined') ? document.querySelector('.ss-romsrc') : null;
+  if (st) st.textContent = /\.zip$/i.test(path) ? '📦 extracting zip & finding track03.bin…' : 'finding the data track…';
+  try {
+    const dataPath = await invoke('rom_prepare', { path });   // → resolved track03.bin (extracts a zip if needed)
+    return makeTauriHandle(String(dataPath), invoke);
+  } catch (e) {
+    if (st) st.textContent = `❌ ${e}`;         // e.g. "That zip didn't contain a MvC2 GDI data track"
+    return null;                                // treated as cancel by callers; the status shows the reason
+  }
 }
 
 function makeTauriHandle(path, invoke) {

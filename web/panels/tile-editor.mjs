@@ -10,7 +10,8 @@
 
 import * as rb from '../rom-bake.mjs?v=6';
 import { RomReader } from '../rom-reader.mjs?v=6';
-import { isTauri, pickRomHandle, backupRom, romHandleFromPath } from '../platform.mjs?v=2';
+import { isTauri, pickRomHandle, backupRom, romHandleFromPath } from '../platform.mjs?v=3';
+import { ProjectStore } from '../projects.mjs?v=1';
 
 const HEX2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
 
@@ -51,6 +52,7 @@ export class SkinStudio {
     this.cells = []; this.fi = 0; this.frame = null;                          // current animation + frame
     this._origPix = {}; this.painted = {};                                   // sel -> Uint8Array indices
     this.brush = 1; this.tool = 'select'; this._undoStack = []; this._redoStack = []; this._timer = null;
+    this._projects = new ProjectStore(); this._curProjectId = null; this._autosaveT = null;   // named projects + version history (localStorage)
     this._sym = 'none'; this._shapeFill = false; this._grid = false; this._onion = false; this._shape = null;
     this._refImg = null; this._refOpacity = 0.45;
     this._brush2 = 0; this._fillMode = 'solid'; this._onionRange = 1; this._playMs = 120; this._diff = false; this._spaceDown = false;
@@ -70,8 +72,9 @@ export class SkinStudio {
         <div class="ss-topbar">
           <label class="ss-field">character <select class="ss-char"></select></label>
           <span class="ss-topgroup" title="your reopenable work">
-            <button class="ss-saveproj" title="save your work (palette + painted parts + layer order) to a project file you can reopen later or share">💾 save</button>
-            <button class="ss-openproj" title="open a saved project file and keep editing">📂 open</button>
+            <button class="ss-projects" title="Projects &amp; version history — save named projects, autosave your work, and roll back to any earlier version">🗂 projects</button>
+            <button class="ss-saveproj" title="export your work (palette + painted parts + layer order) to a portable project file you can share or back up">💾 export</button>
+            <button class="ss-openproj" title="import a saved project file and keep editing">📂 import</button>
             <input class="ss-proj-file" type="file" accept="application/json,.json" style="display:none">
           </span>
           <span class="ss-topgroup ss-export-wrap" style="position:relative;">
@@ -84,7 +87,7 @@ export class SkinStudio {
             </div>
           </span>
           <span class="ss-topgroup" title="your ROM">
-            <button class="ss-loadrom" title="load character data live from your track03.bin (and set it as the bake target)">📂 load track03.bin</button>
+            <button class="ss-loadrom" title="load character data live from your ROM — pick a zipped GDI (.zip), a .gdi, or track03.bin and it finds the data track automatically (and sets it as the bake target)">📂 load ROM</button>
             <button class="ss-bakerom ss-primary" title="bake your edits into track03.bin">⬇ bake to ROM</button>
           </span>
           <span class="ss-topgroup">
@@ -314,6 +317,10 @@ export class SkinStudio {
     this.palBankEl = $('.ss-palbank'); this.palBankHintEl = $('.ss-palbank-hint');
     this.palBankEl.onchange = () => this._setBank(+this.palBankEl.value);
     $('.ss-reset').onclick = () => {   // revert ALL palette edits (every bank)
+      if (Object.keys(this._diffPaletteAll()).length) {
+        if (!confirm('Revert ALL palette edits across every bank for this character?\n\nA version is saved first, so you can restore it from 🗂 projects › versions.')) return;
+        this._snapshotVersion('before revert palette');
+      }
       this._palByBank = {};
       this.cur = ((this._banks && this._banks[String(this.bank)]) || this.orig).map(c => c.slice());
       this._palBase = this.cur.map(c => c.slice()); this._resetPalSliders();
@@ -366,6 +373,7 @@ export class SkinStudio {
       viewMenu.addEventListener('click', (e) => e.stopPropagation());   // keep open while toggling several
       document.addEventListener('click', () => { if (viewMenu) viewMenu.style.display = 'none'; });
     }
+    $('.ss-projects').onclick = () => this._openProjects();
     $('.ss-saveproj').onclick = () => this._saveProject();
     const projFile = $('.ss-proj-file');
     $('.ss-openproj').onclick = () => projFile.click();
@@ -378,14 +386,22 @@ export class SkinStudio {
     $('.ss-erase-tool').onclick = () => { this._setTool('pencil'); this.brush = 0; this._renderBrush(); };
     $('.ss-reset-frame').onclick = () => {
       if (!this.frame) return;
+      const painted = this.frame.parts.filter(pb => this.painted[pb.sel]);
+      if (!painted.length) return;
+      if (!confirm(`Reset painted pixels for ${painted.length} part(s) in this frame?\n\nPress Ctrl+Z to undo, and a version is saved to 🗂 projects first.`)) return;
+      this._snapshotVersion('before reset frame pixels');
+      this._pushUndo(painted.map(pb => ({ sel: pb.sel, pix: this.painted[pb.sel].slice() })));   // undoable
       for (const pb of this.frame.parts) { delete this.painted[pb.sel]; delete this._origPix[pb.sel]; }
-      this._undoStack = []; this._redoStack = []; this._drawFrame(); this._renderBake();
+      this._drawFrame(); this._renderBake();
     };
     $('.ss-reset-all-px').onclick = () => {
-      if (!Object.keys(this.painted).length) return;
-      this.painted = {}; this._origPix = {}; this._undoStack = []; this._redoStack = [];
-      try { localStorage.removeItem(this._draftKey()); } catch {}
-      this._drawFrame(); this._renderBake();
+      const sels = Object.keys(this.painted);
+      if (!sels.length) return;
+      if (!confirm(`Reset ALL painted pixels — ${sels.length} part(s) across every animation of this character?\n\nThis is undoable (Ctrl+Z), and a version is saved to 🗂 projects first so you can always restore it.`)) return;
+      this._snapshotVersion('before reset ALL pixels');
+      this._pushUndo(sels.map(s => ({ sel: +s, pix: this.painted[s].slice() })));   // undoable — restores every part
+      this.painted = {}; this._origPix = {};
+      this._drawFrame(); this._renderBake();   // _renderBake re-saves the (now empty) draft
     };
     this.root.querySelectorAll('.ss-sz').forEach(b => b.onclick = () => { this.penSize = +b.dataset.sz; this.root.querySelectorAll('.ss-sz').forEach(x => x.classList.toggle('on', x === b)); });
     this.grpEl.onchange = () => this._populateSubs();
@@ -438,7 +454,9 @@ export class SkinStudio {
     this._resizeCanvas();
     this._setTool('select');   // default to the pointer/select tool (clicking inspects, never paints)
     this.cid = parseInt(this.selEl.value, 16);
-    this.loadChar(this.cid, { fresh: true });   // auto-load pre-generated data on open (falls back to empty + 📀 prompt)
+    // adopt/create a current project + arm autosave once the first character has loaded (so the
+    // initial snapshot sees a settled state) — resume-where-you-left-off.
+    Promise.resolve(this.loadChar(this.cid, { fresh: true })).finally(() => this._initProjects());
   }
 
   // Load a character from the PRE-GENERATED bundle (tools/build_skin_studio_data.py output in
@@ -2090,20 +2108,187 @@ export class SkinStudio {
   // work), so "save" gathers them and "open" scatters them back.
   //   { format, v:2, active:"PL17", chars:{ "PL17":{palette,painted,zBias}, ... } }
   _projHasEdits(d) { return d && ((d.painted && Object.keys(d.painted).length) || (d.palette && Object.keys(d.palette).length)); }
-  _saveProject() {
-    if (this.cid == null || !this.bundle) { this.bakeEl.innerHTML = '<span class="dim">load a character first</span>'; return; }
+
+  // ---------- minimal editable state (the unit that projects + versions store) ----------
+  // Gather every character's edits from its autosave draft into one plain object. Small — just
+  // palette diffs + painted parts + layer order, never sprite/ROM bytes.
+  _snapshotState() {
     this._saveDraft();   // flush the current character's edits to its draft first
     const chars = {};
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i); if (!k || !k.startsWith('mvc2-sks-PL')) continue;
       try { const d = JSON.parse(localStorage.getItem(k)); if (this._projHasEdits(d)) chars[k.replace('mvc2-sks-', '')] = { palette: d.palette || {}, painted: d.painted || {}, zBias: d.zBias || {} }; } catch {}
     }
-    const n = Object.keys(chars).length;
-    if (!n) { this.bakeEl.innerHTML = '<span class="dim">nothing edited yet to save</span>'; return; }
-    const proj = { format: 'mvc2-skin-studio-project', v: 2, active: `PL${HEX2(this.cid)}`, chars };
-    const fname = n > 1 ? `mvc2_skin_project_${n}chars.json` : `${Object.keys(chars)[0]}_project.json`;
+    return { active: this.cid != null ? `PL${HEX2(this.cid)}` : null, chars };
+  }
+  // Scatter a state back into the working drafts and reload. clearOthers wipes drafts NOT in the
+  // state (a true "restore/switch"); false merges (used only by file import fallback).
+  async _applyState(state, { clearOthers = true } = {}) {
+    const chars = (state && state.chars) || {};
+    if (clearOthers) {
+      const del = [];
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('mvc2-sks-PL') && !chars[k.replace('mvc2-sks-', '')]) del.push(k); }
+      for (const k of del) { try { localStorage.removeItem(k); } catch {} }
+    }
+    for (const [c, st] of Object.entries(chars)) {
+      try { localStorage.setItem(`mvc2-sks-${c}`, JSON.stringify({ palette: st.palette || {}, painted: st.painted || {}, zBias: st.zBias || {} })); } catch {}
+    }
+    const activeC = (state && state.active) || Object.keys(chars)[0] || (this.cid != null ? `PL${HEX2(this.cid)}` : 'PL17');
+    const cid = parseInt(String(activeC).replace(/^PL/i, ''), 16);
+    if (this.selEl) this.selEl.value = HEX2(cid);
+    this._undoStack = []; this._redoStack = []; this.painted = {}; this._origPix = {};
+    await this.loadChar(cid, { fresh: false });   // fresh:false → merges the draft we just wrote
+    return Object.keys(chars).length;
+  }
+
+  // ---------- projects & version history (localStorage, persists across restarts) ----------
+  _initProjects() {
+    try {
+      let id = this._projects.currentId();
+      if (!id || !this._projects.get(id)) id = this._projects.create('My skins', this._snapshotState());
+      else this._projects.save(id, this._snapshotState());   // keep it in sync with any drafts that survived a refresh
+      this._curProjectId = id;
+    } catch { this._curProjectId = null; }
+  }
+  _autosaveProject() {
+    if (!this._curProjectId) return;
+    clearTimeout(this._autosaveT);
+    this._autosaveT = setTimeout(() => { try { this._projects.save(this._curProjectId, this._snapshotState()); this._refreshProjectsModal(); } catch {} }, 1200);
+  }
+  // Save a labeled point-in-time version. Called before every destructive reset (and manually).
+  _snapshotVersion(label) {
+    try {
+      if (!this._curProjectId || !this._projects.get(this._curProjectId)) this._initProjects();
+      this._projects.snapshot(this._curProjectId, label, this._snapshotState());
+      this._refreshProjectsModal();
+      return true;
+    } catch { return false; }
+  }
+
+  _projName(id) { const m = this._projects.meta(id); return m ? m.name : '(untitled)'; }
+  _newProject() {
+    const name = prompt('New project name:', 'Untitled project'); if (name == null) return;
+    this._snapshotVersion('before new project');   // safety point on the outgoing project
+    const id = this._projects.create(name.trim() || 'Untitled project', { active: this.cid != null ? `PL${HEX2(this.cid)}` : null, chars: {} });
+    this._curProjectId = id;
+    this._applyState({ active: null, chars: {} }).then(() => { this._refreshProjectsModal(); this.bakeEl.innerHTML = `<span class="dim">started a fresh project — “${this._projName(id)}”. Your previous work is saved under 🗂 projects.</span>`; });
+  }
+  async _openProjectById(id) {
+    const rec = this._projects.get(id); if (!rec) return;
+    if (id !== this._curProjectId) this._projects.save(this._curProjectId, this._snapshotState());   // flush current before switching
+    this._curProjectId = id; this._projects.setCurrent(id);
+    await this._applyState(rec.state || { active: null, chars: {} });
+    this._refreshProjectsModal();
+    const n = Object.keys((rec.state && rec.state.chars) || {}).length;
+    this.bakeEl.innerHTML = `<span class="dim">opened “${rec.name}” — ${n} character(s) restored.</span>`;
+  }
+  _renameProject(id) { const cur = this._projName(id); const name = prompt('Rename project:', cur); if (name == null) return; this._projects.rename(id, name.trim() || cur); this._refreshProjectsModal(); }
+  _deleteProject(id) {
+    if (this._projects.list().length <= 1) { alert('This is your only project — create another before deleting this one.'); return; }
+    if (!confirm(`Delete project “${this._projName(id)}” and all its versions? This can’t be undone.`)) return;
+    const wasCurrent = id === this._curProjectId;
+    this._projects.remove(id);
+    if (wasCurrent) { this._curProjectId = this._projects.currentId(); const rec = this._projects.get(this._curProjectId); this._applyState((rec && rec.state) || { active: null, chars: {} }); }
+    this._refreshProjectsModal();
+  }
+  async _restoreVersion(ts) {
+    const v = this._projects.version(this._curProjectId, ts); if (!v) return;
+    if (!confirm(`Restore this version (“${v.label}”, ${this._fmtTime(v.ts)})?\n\nYour current state is saved as a new version first, so this is reversible.`)) return;
+    this._snapshotVersion('before restore');
+    await this._applyState(v.state || { active: null, chars: {} });
+    this._refreshProjectsModal();
+    this.bakeEl.innerHTML = `<span class="dim">restored version from ${this._fmtTime(v.ts)} — “${v.label}”.</span>`;
+  }
+  _fmtTime(ts) {
+    try { const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; } catch { return String(ts); }
+  }
+  _stateChars(state) { const c = (state && state.chars) || {}; const ks = Object.keys(c); return ks.length ? ks.join(', ') : '(empty)'; }
+
+  // ---------- projects & versions modal ----------
+  _openProjects() {
+    if (!this._projModal) this._buildProjectsModal();
+    this._refreshProjectsModal();
+    this._projModal.style.display = 'flex';
+  }
+  _buildProjectsModal() {
+    const wrap = document.createElement('div');
+    wrap.className = 'ss-modal';
+    wrap.innerHTML = `
+      <div class="ss-modal-card" style="max-width:720px; width:92%;">
+        <div class="ss-modal-head"><b>🗂 Projects &amp; versions</b><button class="ss-modal-x" title="close">×</button></div>
+        <div class="dim" style="font-size:11px; margin:-2px 0 8px;">Your work autosaves to the current project and is kept in this ${isTauri ? 'app' : 'browser'}. Every destructive reset also saves a version you can roll back to. Use 💾 export for a portable/backup file.</div>
+        <div style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex:1 1 300px; min-width:260px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <b style="font-size:12px;">Projects</b><button class="pj-new" style="font-size:11px; padding:2px 9px;">＋ new</button>
+            </div>
+            <div class="pj-list" style="max-height:320px; overflow:auto; border:1px solid #2a2f3a; border-radius:6px;"></div>
+          </div>
+          <div style="flex:1 1 300px; min-width:260px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <b style="font-size:12px;">Version history <span class="pj-cur dim" style="font-weight:normal;"></span></b>
+              <button class="pj-snap" style="font-size:11px; padding:2px 9px;" title="save a version of the current state you can roll back to">📌 save version</button>
+            </div>
+            <div class="pj-versions" style="max-height:320px; overflow:auto; border:1px solid #2a2f3a; border-radius:6px;"></div>
+          </div>
+        </div>
+      </div>`;
+    this.root.appendChild(wrap);
+    this._projModal = wrap;
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.style.display = 'none'; });
+    wrap.querySelector('.ss-modal-x').onclick = () => { wrap.style.display = 'none'; };
+    wrap.querySelector('.pj-new').onclick = () => this._newProject();
+    wrap.querySelector('.pj-snap').onclick = () => { if (this._snapshotVersion('manual save')) this.bakeEl.innerHTML = '<span class="dim">saved a version you can roll back to (🗂 projects › versions).</span>'; };
+  }
+  _refreshProjectsModal() {
+    const wrap = this._projModal; if (!wrap || wrap.style.display === 'none') return;
+    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // projects list
+    const list = wrap.querySelector('.pj-list'); list.innerHTML = '';
+    for (const p of this._projects.list()) {
+      const cur = p.id === this._curProjectId;
+      const rec = this._projects.get(p.id); const nchars = Object.keys((rec && rec.state && rec.state.chars) || {}).length; const nver = (rec && rec.versions || []).length;
+      const row = document.createElement('div');
+      row.style.cssText = `padding:7px 9px; border-bottom:1px solid #23272f; display:flex; gap:8px; align-items:center; ${cur ? 'background:#1c2740;' : ''}`;
+      row.innerHTML = `<div style="flex:1; min-width:0;">
+          <div style="font-size:12px; color:${cur ? '#9ec5ff' : '#d6d9df'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${cur ? '● ' : ''}${esc(p.name)}</div>
+          <div class="dim" style="font-size:10px;">${nchars} char(s) · ${nver} version(s) · ${this._fmtTime(p.modified)}</div>
+        </div>
+        <button class="pj-open" style="font-size:10px; padding:2px 8px;" ${cur ? 'disabled' : ''}>${cur ? 'open' : 'open'}</button>
+        <button class="pj-ren" title="rename" style="font-size:10px; padding:2px 6px;">✎</button>
+        <button class="pj-del" title="delete" style="font-size:10px; padding:2px 6px;">🗑</button>`;
+      row.querySelector('.pj-open').onclick = () => this._openProjectById(p.id);
+      row.querySelector('.pj-ren').onclick = () => this._renameProject(p.id);
+      row.querySelector('.pj-del').onclick = () => this._deleteProject(p.id);
+      list.appendChild(row);
+    }
+    // current project + versions
+    wrap.querySelector('.pj-cur').textContent = this._curProjectId ? `— ${this._projName(this._curProjectId)}` : '';
+    const vbox = wrap.querySelector('.pj-versions'); vbox.innerHTML = '';
+    const versions = this._curProjectId ? this._projects.versions(this._curProjectId) : [];
+    if (!versions.length) { vbox.innerHTML = `<div class="dim" style="padding:10px; font-size:11px;">No versions yet. One is saved automatically before any reset, or press 📌 save version.</div>`; }
+    for (const v of versions) {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:7px 9px; border-bottom:1px solid #23272f; display:flex; gap:8px; align-items:center;';
+      row.innerHTML = `<div style="flex:1; min-width:0;">
+          <div style="font-size:12px; color:#d6d9df; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(v.label)}</div>
+          <div class="dim" style="font-size:10px;">${this._fmtTime(v.ts)} · ${esc(this._stateChars(v.state))}</div>
+        </div>
+        <button class="pj-restore" style="font-size:10px; padding:2px 9px;">restore</button>`;
+      row.querySelector('.pj-restore').onclick = () => this._restoreVersion(v.ts);
+      vbox.appendChild(row);
+    }
+  }
+
+  // ---------- portable project FILE (export / import) ----------
+  _saveProject() {
+    const state = this._snapshotState();
+    const n = Object.keys(state.chars).length;
+    if (!n) { this.bakeEl.innerHTML = '<span class="dim">nothing edited yet to export</span>'; return; }
+    const proj = { format: 'mvc2-skin-studio-project', v: 2, active: state.active, chars: state.chars };
+    const fname = n > 1 ? `mvc2_skin_project_${n}chars.json` : `${Object.keys(state.chars)[0]}_project.json`;
     this._download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), fname);
-    this.bakeEl.innerHTML = `<span class="dim">saved project — ${n} character(s) (${Object.keys(chars).join(', ')}). Reopen anytime with 📂 open project.</span>`;
+    this.bakeEl.innerHTML = `<span class="dim">exported project file — ${n} character(s) (${Object.keys(state.chars).join(', ')}). Reopen anytime with 📂 import.</span>`;
   }
   async _loadProject(file) {
     let proj;
@@ -2112,17 +2297,15 @@ export class SkinStudio {
     // v2 = multi-character {chars:{...}}; v1 = single character {char, palette, painted, zBias}
     let chars = proj.chars;
     if (!chars) { const c = proj.char || `PL${HEX2(this.cid)}`; chars = { [c]: { palette: proj.palette || {}, painted: proj.painted || {}, zBias: proj.zBias || {} } }; proj.active = c; }
-    // scatter each character's state into its autosave draft, so switching characters restores it
-    for (const [c, st] of Object.entries(chars)) {
-      try { localStorage.setItem(`mvc2-sks-${c}`, JSON.stringify({ palette: st.palette || {}, painted: st.painted || {}, zBias: st.zBias || {} })); } catch {}
-    }
-    const activeC = proj.active || Object.keys(chars)[0];
-    const cid = parseInt(String(activeC).replace(/^PL/i, ''), 16);
-    if (this.selEl) this.selEl.value = HEX2(cid);
-    this._undoStack = []; this._redoStack = [];
-    await this.loadChar(cid, { fresh: false });   // fresh:false → merges the draft we just wrote
-    const n = Object.keys(chars).length;
-    this.bakeEl.innerHTML = `<span class="dim">opened project — ${n} character(s) restored; now editing ${activeC}${n > 1 ? '. Switch characters to see the rest.' : '.'}</span>`;
+    const state = { active: proj.active || Object.keys(chars)[0], chars };
+    // an imported file becomes its own project, so it doesn't clobber what you were working on
+    const baseName = (file.name || 'imported project').replace(/\.json$/i, '');
+    this._snapshotVersion('before import');
+    const id = this._projects.create(baseName, state);
+    this._curProjectId = id;
+    const n = await this._applyState(state);
+    this._refreshProjectsModal();
+    this.bakeEl.innerHTML = `<span class="dim">imported “${baseName}” as a new project — ${n} character(s) restored; now editing ${state.active}${n > 1 ? '. Switch characters to see the rest.' : '.'}</span>`;
   }
   // ---------- draft persistence (survives page refresh) ----------
   _draftKey() { return `mvc2-sks-PL${HEX2(this.cid)}`; }
@@ -2164,6 +2347,7 @@ export class SkinStudio {
     const bakeHint = isTauri ? `Click <b>⬇ bake to ROM</b> to write it into your track03.bin.` : `Export, then:<br><code>python tools/bake_skin.py PL${HEX2(this.cid)}_skin.json</code>`;
     this.bakeEl.innerHTML = (pe || pp) ? `${palTxt}, <b>${pp}</b> painted part(s). ${bakeHint}` : `<span class="dim">recolor a swatch or paint the sprite for PL${HEX2(this.cid)}</span>`;
     this._saveDraft();
+    this._autosaveProject();   // keep the current project in sync with the working edits (debounced)
   }
   async _buildSkin() {
     const skin = { char: `PL${HEX2(this.cid)}` }; const pal = this._diffPaletteAll(); if (Object.keys(pal).length) skin.palette = pal;

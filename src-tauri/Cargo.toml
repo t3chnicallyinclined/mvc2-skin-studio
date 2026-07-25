@@ -19,6 +19,8 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Extract a zipped GDI so users can just hand us the .zip (deflate only — no bzip2/zstd/aes bloat).
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # Smaller, faster release binary for distribution.
 [profile.release]
