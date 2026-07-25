@@ -3,6 +3,99 @@
 All notable changes to MvC2 Skin Studio. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are `YYYY-MM-DD`.
 
+## 2026-07-24
+
+### Changed — UX pass (more intuitive layout)
+- The always-on two-row option bar was a "junk drawer" showing every control for every tool. It's
+  now a **contextual tool-options bar** that shows only the options for the active tool, with a
+  separate **view bar** for persistent view state (zoom/fit/grid/onion/diff/flip/reference).
+- Added a prominent **FG/BG colour chip** (index + hex) in the palette dock; **X** swaps them
+  (view-flip moved to **Shift+X**).
+- **File actions regrouped** into Project (save/open) · an **Export ▾ menu** (frame PNG / sheet /
+  GIF / skin.json, consolidated from two places) · ROM (load / bake).
+- **Decluttered around the canvas**: navigation + zoom sit in one compact toolbar above the canvas;
+  the view toggles (grid / boxes / onion / diff / flip / reference) moved into a **👁 view ▾
+  popover**; below the canvas is only the contextual options + a slim timeline — giving the pixel
+  canvas much more vertical room.
+- **Friendlier tool controls**: brush-size buttons now show the **actual pixel footprint** (a growing
+  square) with the selected size highlighted; the cursor shows a **live brush outline** on the canvas
+  (red when erasing) so you see exactly what you'll paint; a **symmetry axis guide** draws on the
+  canvas when mirror drawing is on; and the shading-ink labels read "shade ↑ lighter / ↓ darker".
+
+### Added — pro tools & preview
+- **Pixel-perfect pencil** — drops the doubled corner pixels on diagonal freehand strokes.
+- **Shading ink** — a pencil ink that steps each painted pixel one step lighter/darker along the
+  palette (sorted by luminance), once per pixel per stroke.
+- **Live preview panel** — a small always-on loop of the current animation (reflecting your edits)
+  in the right dock, plus a **navigator minimap** (click/drag to pan when zoomed in).
+- **Right-drag to pan** the canvas (in addition to space-drag and middle-drag).
+
+### Added — cross-platform builds
+- The desktop app builds for **Windows, macOS, and Linux** (Tauri). Frontend staging moved from a
+  Python script into `build.rs` (pure Rust), so **no Node or Python is needed to build** and it's
+  identical on every OS. `bundle.targets` is now `all` (each OS builds its native installers).
+- **GitHub Actions release workflow** (`.github/workflows/release.yml`): pushing a `v*` tag builds
+  all three platforms and drafts a Release with the installers attached (Windows `.msi`/`.exe`,
+  macOS universal `.dmg`, Linux `.AppImage`/`.deb`).
+
+### Added — Windows desktop app (Tauri)
+- **Skin Studio now ships as a native Windows app** — no Python, no local server, no
+  Chrome/Edge requirement. It reads your `track03.bin` directly, edits palettes + pixels with
+  the same editor as the web build, and bakes **in place** with an automatic pristine
+  **`track03.bin.bak`** made the first time (a real backup the browser build couldn't create
+  on its own). Build with `cargo tauri build` → `.msi` + NSIS `-setup.exe`.
+  - New `src-tauri/` Rust backend: four thin commands (`rom_size` / `rom_read` / `rom_write` /
+    `rom_backup`) do **positioned range I/O** into the ROM, so the ~1.2 GB file is never read
+    or rewritten whole.
+  - New `web/platform.mjs` adapter presents those commands as a **File System Access–shaped**
+    ROM handle, so `rom-reader.mjs` and `rom-bake.mjs` (the byte-faithful decode/bake) stay
+    unchanged and the browser build keeps working. Picker chooses between the native Tauri
+    dialog and `showOpenFilePicker` on `window.__TAURI__`.
+
+### Fixed — desktop window fit & canvas size
+- The desktop app now opens **centered** in a tall window and runs as a **full-window app shell** —
+  the editor fills the window with no page scrolling; the onboarding cards, hint banner, and page
+  header are hidden. (`?appshell` forces the same full-window layout in a browser.)
+- The **canvas fills its whole container** and re-fits the sprite on resize (responsive), instead of
+  a fixed 420×380 — so it's as big as the space it's in, and grows with the window / focus mode.
+- **⤢ Focus mode** (view bar or `\`) collapses the palette + preview docks for even more canvas.
+
+### Changed — editor UI redesign (Aseprite-style)
+- The editor was reorganized from three crammed toolbar rows into a proper **app layout**: a
+  top action bar (character + grouped file/ROM actions), a **left tool rail** (labeled
+  DRAW / SHAPES / SELECT & STAMP / HISTORY sections), a **palette dock**, a **canvas column**
+  with an animation-nav header, a two-row **context bar** (brush + layer options), and a
+  **frame timeline**; a **right dock** for the parts/preview panels; and a **status bar**.
+  Every control is preserved. Bake is now a highlighted primary button.
+
+### Added — editor features
+- **Redo** — the undo history is now two-way (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z).
+- **Keyboard shortcuts** — B pencil · E erase · G fill · I pick · H pan · V select · M copy ·
+  N region · L line · R rect · O ellipse · P stamp · `[` `]` brush size · 1–4 sizes · `,` `.`
+  step frames · `+` `-` zoom · X flip.
+- **Shape tools** — line, rectangle, ellipse (outline or filled), with a live drag preview.
+- **Symmetry drawing** — mirror every stroke across a vertical or horizontal axis.
+- **Onion skin** — ghost the previous (red) / next (blue) animation frame under the current one.
+- **Pixel grid** overlay at high zoom.
+- **Frame timeline** — thumbnail-per-frame strip; click to jump.
+- **Reference image overlay** — load any image and trace over it at adjustable opacity.
+- **Settings / preferences** (⚙, persisted): canvas background (checker / dark / black), grid,
+  onion, confirm-before-bake, remember last character, and (desktop) remember & reopen the last ROM.
+- **Palette I/O** — export the 16 colours as `.hex` + a PNG strip; import a palette
+  (`.hex` / `.gpl` / JASC `.pal` / PNG); **palette from image** (recolour to an image's scheme);
+  and a **ramp** tool that interpolates a smooth shading gradient between two palette slots.
+- **Navigation** — **scroll-wheel zoom** (toward the cursor), **Fit** / **1×** buttons + a live zoom
+  readout, hold-**Space** or middle-drag to **pan** with any tool, and **Alt** to eyedrop from any tool.
+- **Move & transform** — **arrow keys nudge** the active part; a copied stamp can be **flipped
+  (H/V) and rotated (R)** before placing.
+- **Fill modes** — the bucket can fill **solid**, **50% dither**, or a **dithered gradient**
+  (vertical / horizontal) between the primary and a second colour.
+- **Animated GIF export** (⤓ gif) — the whole animation as a looping GIF, using the character's
+  palette with a transparent background and per-frame timing.
+- **Onion range** (±1–4 frames), **playback-speed** control, a **diff view** (highlight only the
+  pixels you changed), an **alt-costume** generator (hue-shift the whole palette), and a
+  **keyboard-shortcut cheatsheet** (press `?`).
+
 ## 2026-06-16 (later)
 
 ### Fixed

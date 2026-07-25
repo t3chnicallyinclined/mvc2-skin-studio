@@ -25,8 +25,18 @@ never uploaded.
   "Hyper Viper Beam", …); the bake writes every palette you touch.
 - **Pixel editor** — pick an animation, step frame-by-frame, and paint on the fully
   assembled sprite. Tools: **select** (default — click to inspect a part, never paints),
-  pencil, fill, pick, pan, brush sizes, undo, per-part boxes, layer order (send back /
-  bring front).
+  pencil, fill, pick, pan, **line / rectangle / ellipse** (outline or filled), brush sizes,
+  **undo + redo**, per-part boxes, layer order (send back / bring front), and **symmetry**
+  (mirror strokes across an axis). Full **keyboard shortcuts** (B/E/G/I/H, L/R/O for shapes,
+  Ctrl+Z / Ctrl+Y, `[` `]` sizes, `,` `.` frames).
+- **Animation aids** — **onion skin** (ghost the neighbouring frames), a **pixel grid** at high
+  zoom, a **frame timeline** strip (click a thumbnail to jump), and a **reference-image overlay**
+  you can trace over at adjustable opacity.
+- **Settings** (⚙, saved) — canvas background, grid, onion, confirm-before-bake, remember last
+  character, and (desktop) remember & reopen the last ROM.
+- **Palette I/O** — **export** the 16 colours (`.hex` + PNG strip), **import** a palette
+  (`.hex` / `.gpl` / JASC `.pal` / PNG), **palette from image** (recolour to any image's scheme),
+  and a **ramp** that interpolates a smooth shading gradient between two slots.
 - **Copy / paste / stickers** — marquee-**copy** a region and **stamp** it elsewhere, or
   import any PNG as a **sticker** (auto-quantized to the character's palette) and stamp it.
 - **Edit in bulk** — every part is shared, so painting a part updates *every* frame that
@@ -61,7 +71,49 @@ fixing the disc's ISO sizes so the game still boots.
 
 ---
 
-## Quick start
+## Desktop app (Windows) — the easy way
+
+The simplest way to run Skin Studio is the **Windows desktop app**: one window, **no Python,
+no local server, no Chrome/Edge requirement**. It reads your `track03.bin` directly, recolors
+and paints with the exact same editor as the web build, and bakes **in place** — making an
+automatic pristine **`track03.bin.bak`** the first time (a real backup the browser build can't
+create on its own).
+
+**BYOR still applies** — the app ships **no** game data; you point it at your own
+legally-owned MVC2 disc's `track03.bin`.
+
+### Run it
+1. Launch the app (install the bundled `.msi` / `…-setup.exe`, or run the built `.exe`).
+2. Click **📂 load track03.bin** and pick your ROM's data track. Every character decodes
+   **live from the ROM** — no one-time decode step, no pre-generated files.
+3. Recolor / paint, then **⬇ bake to ROM**. It writes straight into `track03.bin` (and makes
+   `track03.bin.bak` the first time). Load the `.gdi` in flycast, or copy to your Dreamcast.
+
+### Build it from source (Windows, macOS, Linux)
+Needs the [Rust toolchain](https://rustup.rs) and the Tauri CLI (`cargo install tauri-cli --version '^2'`).
+On Linux also install the WebKitGTK build deps (see the
+[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)).
+```bash
+cargo tauri dev      # run the desktop app (dev)
+cargo tauri build    # build installers → src-tauri/target/release/bundle/
+```
+Outputs per OS: **Windows** `.msi` + NSIS `.exe` · **macOS** `.app` + `.dmg` · **Linux** `.AppImage` + `.deb`.
+**No Node or Python is needed to build** — `build.rs` stages the frontend (copies `web/` minus your
+local ROM data into `src-tauri/wwwroot/`) in pure Rust, so it's identical on all three OSes.
+
+Pushing a `v*` git tag builds **all three platforms** via GitHub Actions and drafts a Release
+(`.github/workflows/release.yml`).
+
+The desktop app **reuses the same `web/` editor** as the browser build; the Rust shell in
+`src-tauri/` only adds native file access (four small `rom_*` commands) to read/write your ROM
+without a browser's File System Access API. The browser flow below still works unchanged.
+
+---
+
+## Quick start (browser / from source)
+
+> *For the one-click desktop app, see **Desktop app** above. This flow runs the editor in your
+> browser via a small Python dev server — handy for development or non-Windows use.*
 
 ### 0. Prerequisites
 - **Python 3.8+** and **Pillow** (`pip install -r requirements.txt`)

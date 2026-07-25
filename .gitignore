@@ -37,3 +37,10 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# --- Tauri desktop app (Rust build artifacts + generated schemas) ---
+src-tauri/target/
+src-tauri/gen/
+# staged frontend for the bundle (generated at build time; excludes ROM data)
+src-tauri/wwwroot/
+# (keep src-tauri/icons/ and src-tauri/app-icon.png — needed to build the installers)

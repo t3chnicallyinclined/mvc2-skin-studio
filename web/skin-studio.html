@@ -9,7 +9,7 @@
   header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; }
   header h1 { font-size:14px; margin:0; letter-spacing:.5px; } header .sub { color:var(--dim); font-size:12px; }
   header a { color:#7fb0ff; text-decoration:none; margin-left:auto; }
-  .wrap { padding:16px; max-width:980px; }
+  .wrap { padding:16px; max-width:1480px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
   .dim { color:var(--dim); }
   .ss-row { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
@@ -53,6 +53,123 @@
   .ss-bake { margin-top:14px; color:var(--dim); }
   .ss-bake code { color:#ffe878; background:#0b0c10; padding:2px 6px; border-radius:4px; }
   ol { color:var(--dim); font-size:12px; } ol code { color:#cdd3df; }
+
+  /* ============ Skin Studio — Aseprite-style app layout ============ */
+  .ss-app { display:flex; flex-direction:column; gap:12px; }
+
+  /* top bar */
+  .ss-topbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-bottom:10px; border-bottom:1px solid var(--line); }
+  .ss-brand { font-weight:700; letter-spacing:.5px; color:#d8ecff; padding-right:4px; }
+  .ss-field { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--dim); }
+  .ss-field select { color:var(--ink); }
+  .ss-topgroup { display:inline-flex; gap:4px; align-items:center; padding-left:10px; border-left:1px solid var(--line); }
+  .ss-primary { background:#1f6feb; border-color:#3b82f6; color:#fff; font-weight:600; }
+  .ss-primary:hover { background:#2a7bff; }
+  .ss-romsrc { margin-left:auto; font-size:11px; }
+  /* export dropdown menu */
+  .ss-export-menu { position:absolute; top:100%; left:0; margin-top:5px; background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:4px; display:none; flex-direction:column; gap:2px; z-index:40; min-width:158px; box-shadow:0 10px 30px rgba(0,0,0,.55); }
+  .ss-export-menu button { text-align:left; width:100%; font-size:12px; }
+  /* view options popover (dropdown from the canvas toolbar) */
+  .ss-view-menu { position:absolute; top:100%; right:0; margin-top:5px; background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:6px; display:none; flex-direction:column; gap:5px; z-index:40; min-width:190px; box-shadow:0 10px 30px rgba(0,0,0,.55); }
+  .ss-view-menu button { text-align:left; width:100%; font-size:12px; }
+  .ss-view-menu label { display:flex; align-items:center; gap:6px; font-size:12px; }
+  .ss-menu-sep { height:1px; background:var(--line); margin:2px 0; }
+
+  /* body grid: rail | palette | canvas | right dock */
+  .ss-body { display:grid; grid-template-columns:auto auto minmax(340px,1fr) auto; gap:12px; align-items:start; }
+
+  /* tool rail */
+  .ss-rail { display:flex; flex-direction:column; flex-wrap:nowrap; gap:3px; width:138px; padding:8px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; align-items:stretch; }
+  .ss-rail button { width:100%; text-align:left; padding:6px 9px; font-size:12px; }
+  .ss-railsec { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin:8px 2px 2px; }
+  .ss-railsec:first-child { margin-top:0; }
+
+  /* palette dock */
+  .ss-paldock { display:flex; flex-direction:column; gap:8px; width:158px; padding:10px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-docktitle { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); display:flex; align-items:center; justify-content:space-between; }
+  .ss-docktitle .ss-copyhex { font-size:9px; padding:1px 6px; letter-spacing:0; text-transform:none; }
+  .ss-subtle { font-size:10px; margin-top:-4px; }
+  .ss-paldock .ss-brush { grid-template-columns:repeat(2, 1fr); gap:4px; width:100%; }
+  .ss-paldock .ss-bsw { width:100%; height:42px; }
+  .ss-paldock .ss-reset { margin-top:2px; font-size:11px; }
+  /* FG/BG colour chip */
+  .ss-fgbg { display:flex; align-items:center; gap:6px; }
+  .ss-chip { flex:1; height:34px; border:1px solid var(--line); border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#fff; text-shadow:0 0 3px #000, 0 0 2px #000;
+             background-image:linear-gradient(45deg,#333 25%,transparent 25%),linear-gradient(-45deg,#333 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#333 75%),linear-gradient(-45deg,transparent 75%,#333 75%); background-size:10px 10px; background-position:0 0,0 5px,5px -5px,-5px 0; }
+  .ss-chip.ss-fg { height:40px; outline:2px solid #ffe878; }
+  .ss-swap-fgbg { padding:2px 7px; font-size:12px; }
+
+  /* canvas column */
+  .ss-canvascol { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .ss-panelrow { background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-canvashead { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 10px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-canvashead .ss-finfo { font-size:12px; color:var(--ink); min-width:92px; }
+  .ss-canvaswrap { display:flex; justify-content:center; padding:12px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-canvaswrap .ss-edit { max-width:100%; }
+  .ss-ctxbar { display:flex; flex-direction:column; gap:8px; padding:8px 10px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-ctxrow { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .ss-ctxlabel { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); min-width:34px; }
+  /* view bar + contextual tool-options bar */
+  .ss-viewbar, .ss-toolopts { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:7px 10px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-toolopts { min-height:34px; border-color:#2f3a4a; }
+  .ss-optgrp { display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border-right:1px solid var(--line); }
+  .ss-optgrp:last-of-type { border-right:0; }
+  .ss-topt-label { color:#a0bde8; }
+  .ss-sz { display:inline-flex; align-items:center; padding:4px 8px; }
+  .ss-sz.on { background:#3a4150; outline:1px solid #ffe878; }
+  .ss-szbox { display:inline-block; background:currentColor; vertical-align:middle; margin-right:5px; border-radius:1px; }
+
+  /* right dock */
+  .ss-rightdock { display:flex; flex-direction:column; gap:10px; }
+  .ss-livepanel { display:flex; flex-direction:column; gap:6px; width:200px; padding:8px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; }
+  .ss-live-head { display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#a0bde8; }
+  .ss-live-toggle { font-size:12px; padding:0 7px; }
+  .ss-live-body { display:flex; flex-direction:column; gap:6px; }
+  .ss-live-canvas, .ss-mini-canvas { width:100%; height:auto; image-rendering:pixelated; background:#15171d; border:1px solid #262a33; border-radius:4px; }
+  .ss-mini-canvas { cursor:crosshair; }
+  .ss-mini-label { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; }
+
+  /* status bar */
+  .ss-statusbar { padding-top:10px; border-top:1px solid var(--line); min-height:26px; }
+  .ss-statusbar .ss-bake { margin-top:0; }
+
+  /* the animation-impact chip line only takes space when populated */
+  .ss-animlinks:empty { display:none !important; }
+
+  /* settings modal */
+  .ss-modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50; }
+  .ss-modal-card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; width:360px; max-width:92vw; display:flex; flex-direction:column; gap:9px; box-shadow:0 14px 44px rgba(0,0,0,.55); }
+  .ss-modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; }
+  .ss-modal-head b { color:#d8ecff; font-size:14px; }
+  .ss-modal-x { font-size:15px; line-height:1; padding:1px 9px; }
+  .ss-set-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink); }
+  .ss-set-row select { margin-left:auto; }
+
+  /* frame timeline strip */
+  .ss-timeline { display:flex; gap:5px; align-items:center; flex-wrap:nowrap; padding:5px 8px; background:#0b0c10; border:1px solid var(--line); border-radius:8px; overflow-x:auto; }
+  .ss-timeline canvas { border:1px solid #262a33; border-radius:3px; background:#15171d; cursor:pointer; image-rendering:pixelated; }
+  .ss-timeline canvas.on { outline:2px solid #ffe878; border-color:#ffe878; }
+  .ss-tl-empty { color:var(--dim); font-size:11px; }
+
+  /* the canvas fills its box (sized responsively by JS); give it a comfortable minimum on the web */
+  .ss-canvaswrap { min-height:480px; }
+  .ss-canvaswrap .ss-edit { max-width:100%; max-height:100%; }
+
+  /* ---- desktop app-shell: fill the window, no page scroll, hide onboarding cards ---- */
+  :root.is-tauri, :root.is-tauri body { height:100%; }
+  :root.is-tauri body { display:flex; flex-direction:column; overflow:hidden; }
+  :root.is-tauri header { flex:0 0 auto; }
+  :root.is-tauri .wrap { flex:1 1 auto; min-height:0; max-width:none; overflow:hidden; display:flex; flex-direction:column; padding:12px; }
+  :root.is-tauri .help-cards { display:none; }
+  :root.is-tauri .app-card { flex:1 1 auto; min-height:0; display:flex; overflow:hidden; padding:12px; }
+  :root.is-tauri .app-card > #studio { flex:1 1 auto; min-height:0; display:flex; }
+  :root.is-tauri .ss-app { flex:1 1 auto; min-height:0; height:100%; }
+  :root.is-tauri .ss-body { flex:1 1 auto; min-height:0; align-items:start; }
+  :root.is-tauri .ss-canvascol { align-self:stretch; min-height:0; }
+  :root.is-tauri .ss-canvaswrap { flex:1 1 auto; min-height:0; }
+  :root.is-tauri .ss-hint { display:none; }   /* the onboarding banner is just chrome inside the app */
+  :root.is-tauri header { display:none; }     /* redundant with the app's own top action bar */
+  .ss-focus.on { background:#3a4150; outline:1px solid #ffe878; }
 </style>
 </head>
 <body>
@@ -62,9 +179,10 @@
   <a href="https://github.com/t3chnicallyinclined/mvc2-skin-studio#readme" target="_blank" rel="noopener">README ↗</a>
 </header>
 <div class="wrap">
-  <div class="card">
+  <div class="card app-card">
     <div id="studio"></div>
   </div>
+  <div class="help-cards">
   <div class="card" style="margin-top:14px; border-color:#2a4870; background:#0e1b2e;">
     <b style="color:#d8ecff;">💾 Save your work</b>
     <ol style="color:#a0bde8;">
@@ -90,9 +208,10 @@
     </ol>
     <span class="dim" style="font-size:11px">Great for reference, sharing, or opening in Aseprite/GIMP. You edit the sprite itself right here — paint on the frame and recolor the palette, then bake.</span>
   </div>
+  </div>
 </div>
 <script type="module">
-  import { SkinStudio } from './panels/tile-editor.mjs?v=53';
+  import { SkinStudio } from './panels/tile-editor.mjs?v=66';
   new SkinStudio(document.getElementById('studio'));
 </script>
 </body>

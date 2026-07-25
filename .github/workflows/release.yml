@@ -1,0 +1,61 @@
+name: release
+
+# Push a version tag (e.g. v0.1.0) to build installers for all three OSes and attach them to a
+# GitHub Release. The frontend is staged into src-tauri/wwwroot by build.rs (pure Rust, no Node/Python).
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest        # universal .dmg (Intel + Apple Silicon)
+            args: '--target universal-apple-darwin'
+          - platform: ubuntu-22.04         # .AppImage + .deb (+ .rpm)
+            args: ''
+          - platform: windows-latest       # .msi + NSIS .exe
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build the app and publish the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'MvC2 Skin Studio ${{ github.ref_name }}'
+          releaseBody: |
+            Cross-platform desktop builds of MvC2 Skin Studio. See CHANGELOG.md for what's new.
+
+            BYOR — these ship **no** game data; you supply your own legally-owned MVC2 disc's `track03.bin`.
+
+            The macOS app is currently **unsigned**: right-click it and choose **Open** the first time to get past Gatekeeper.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
