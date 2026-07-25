@@ -98,8 +98,9 @@ cargo tauri dev      # run the desktop app (dev)
 cargo tauri build    # build installers → src-tauri/target/release/bundle/
 ```
 Outputs per OS: **Windows** `.msi` + NSIS `.exe` · **macOS** `.app` + `.dmg` · **Linux** `.AppImage` + `.deb`.
-**No Node or Python is needed to build** — `build.rs` stages the frontend (copies `web/` minus your
-local ROM data into `src-tauri/wwwroot/`) in pure Rust, so it's identical on all three OSes.
+Needs **Node** for the frontend staging step (Tauri runs `scripts/stage-frontend.mjs` automatically —
+it copies `web/` minus your local ROM data into `src-tauri/wwwroot/`, identically on all three OSes).
+**No Python is needed to build.**
 
 Pushing a `v*` git tag builds **all three platforms** via GitHub Actions and drafts a Release
 (`.github/workflows/release.yml`).

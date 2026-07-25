@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.tristech.mvc2skinstudio",
   "build": {
-    "frontendDist": "wwwroot"
+    "frontendDist": "wwwroot",
+    "beforeDevCommand": "node scripts/stage-frontend.mjs",
+    "beforeBuildCommand": "node scripts/stage-frontend.mjs"
   },
   "app": {
     "withGlobalTauri": true,

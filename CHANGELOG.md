@@ -31,9 +31,10 @@ All notable changes to MvC2 Skin Studio. Format loosely follows
 - **Right-drag to pan** the canvas (in addition to space-drag and middle-drag).
 
 ### Added — cross-platform builds
-- The desktop app builds for **Windows, macOS, and Linux** (Tauri). Frontend staging moved from a
-  Python script into `build.rs` (pure Rust), so **no Node or Python is needed to build** and it's
-  identical on every OS. `bundle.targets` is now `all` (each OS builds its native installers).
+- The desktop app builds for **Windows, macOS, and Linux** (Tauri). Frontend staging is a small
+  cross-platform **Node** script (`scripts/stage-frontend.mjs`, run as Tauri's `beforeBuildCommand`)
+  that copies `web/` minus the ROM-derived `test-atlas/` into `wwwroot/` — no Python needed, identical
+  on every OS. `bundle.targets` is now `all` (each OS builds its native installers).
 - **GitHub Actions release workflow** (`.github/workflows/release.yml`): pushing a `v*` tag builds
   all three platforms and drafts a Release with the installers attached (Windows `.msi`/`.exe`,
   macOS universal `.dmg`, Linux `.AppImage`/`.deb`).

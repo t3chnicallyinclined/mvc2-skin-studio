@@ -51,11 +51,26 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'MvC2 Skin Studio ${{ github.ref_name }}'
           releaseBody: |
-            Cross-platform desktop builds of MvC2 Skin Studio. See CHANGELOG.md for what's new.
+            Edit **Marvel vs. Capcom 2** character sprites (recolor the palette **and** paint the pixels) and bake them straight into your own Dreamcast GDI to play on **flycast** or real hardware. Runs locally.
 
-            BYOR — these ship **no** game data; you supply your own legally-owned MVC2 disc's `track03.bin`.
+            > **BYOR** — these builds ship **no game data**. You supply your own legally-owned MVC2 disc's `track03.bin`.
 
-            The macOS app is currently **unsigned**: right-click it and choose **Open** the first time to get past Gatekeeper.
+            ### Install
+            - **Windows** — `.msi` or `-setup.exe`
+            - **macOS** — `.dmg` (universal). Unsigned: **right-click → Open** the first time.
+            - **Linux** — `.AppImage` or `.deb`
+
+            Then: **launch → 📂 load track03.bin → edit → ⬇ bake to ROM**. Loading the ROM decodes every character **in-app** — no Python, no server, no pre-processing.
+
+            ### Features
+            - **Editor** — Aseprite-style layout (tool rail, palette dock, responsive canvas, contextual options, live preview + navigator minimap, frame timeline); paint on the assembled animated sprite; shared-part edits ripple across every frame with an amber/blue impact view.
+            - **Tools** — pencil, fill (solid / dither / dithered gradient), pick, eraser, pan; line / rectangle / ellipse; marquee copy → stamp (flip/rotate); PNG stickers; region-select across an animation; propagate; undo + redo; keyboard shortcuts; symmetry (with axis guide); pixel-perfect pencil; shading ink; visual brush sizes + a live brush cursor; move/nudge.
+            - **Colour & palette** — FG/BG chip (X to swap), right-click swatch to recolour live, recolor-all (HSL), swap N→M, shading ramp, alt-costume, import/export (`.hex`/`.gpl`/`.pal`/PNG), palette-from-image, all palette banks (PalMod names).
+            - **Animation & view** — frame timeline, live looping preview, onion skin (±N), playback speed, scroll-zoom to cursor, fit/1×, grid, diff view, flip, reference-image overlay, focus mode, right/middle/space pan.
+            - **Save / export** — multi-character project save/open + autosave; export frame PNG / animation sheet / **animated GIF** / skin.json / palette; one-click **bake to ROM** in place with an automatic `track03.bin.bak`.
+            - **Cross-platform** — native Windows / macOS / Linux (Tauri).
+
+            Full details in the [CHANGELOG](https://github.com/t3chnicallyinclined/mvc2-skin-studio/blob/master/CHANGELOG.md).
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
