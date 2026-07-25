@@ -13,6 +13,9 @@ jobs:
           ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_ANNOUNCE }}
           FIRMWARE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_FIRMWARE }}
           GENERAL_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_GENERAL }}
+          # raw endpoint of the repo's github-events webhook (no /github) so releases render there —
+          # Discord's built-in /github integration silently drops release events
+          GITHUB_CH_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK_GITHUB }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
           RELEASE_NAME: ${{ github.event.release.name }}
@@ -35,3 +38,4 @@ jobs:
           post "$ANNOUNCE_WEBHOOK" "#announcements"
           post "$FIRMWARE_WEBHOOK" "#firmware"
           post "$GENERAL_WEBHOOK" "#general"
+          post "$GITHUB_CH_WEBHOOK" "#github"
