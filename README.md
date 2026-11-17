@@ -7,7 +7,9 @@ never uploaded.
 
 ![pixel + palette editor → bake into the disc](docs/screenshot.png)
 
-> **BYOR — Bring Your Own ROM.** This repo contains **no game data**. You supply your
+> **BYOR — Bring Your Own ROM.** This repo contains **no ROM bytes, sprite pixels or palettes**. It does ship two kinds of
+> metadata: frame-data tables in `web/anim/` (from the community anotak corpus) and palette names in
+> `web/palnames/` (from PalMod). You supply your
 > own legally-owned MVC2 disc. All sprite data is decoded *from your copy* into local,
 > git-ignored files. Don't commit ROMs, extracted sprites, or baked discs.
 
@@ -106,7 +108,7 @@ Pushing a `v*` git tag builds **all three platforms** via GitHub Actions and dra
 (`.github/workflows/release.yml`).
 
 The desktop app **reuses the same `web/` editor** as the browser build; the Rust shell in
-`src-tauri/` only adds native file access (four small `rom_*` commands) to read/write your ROM
+`src-tauri/` only adds native file access (five small `rom_*` commands) to read/write your ROM
 without a browser's File System Access API. The browser flow below still works unchanged.
 
 ---
@@ -295,8 +297,9 @@ community. None of this would exist without their decades of work:
 - **Preppy** — for collecting and preserving the enormous body of MvC2 art and information over
   the years, the *MvC2: Deconstructed* breakdown of the Dreamcast disc, and **PalMod** — the
   long-running palette editor for Capcom fighters (MvC2 included; originally by DrewDos,
-  Magnetro, eidrian & Preppy). Skin Studio doesn't use PalMod's code or data — it decodes
-  palettes straight from your ROM — but PalMod is the prior art that proved out community
+  Magnetro, eidrian & Preppy). Skin Studio doesn't use PalMod's code, and it decodes
+  palettes straight from your ROM. The palette *names* in `web/palnames/` are taken from PalMod's
+  descriptions. PalMod is the prior art that proved out community
   palette editing for these games.
   → [zachd.com/mvc2](https://zachd.com/mvc2/) · [MvC2: Deconstructed](https://zachd.com/mvc2/resources/mvc2/) · [PalMod](https://github.com/Preppy/PalMod)
 - **rob2d (f8)** — author of **[ModNao](https://github.com/rob2d/modnao)** (the browser-based

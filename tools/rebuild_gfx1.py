@@ -66,7 +66,7 @@ def rebuild_dat(dat, edits=None):
     # Collect each part. Keep the ORIGINAL compressed bytes for parts the user did NOT edit
     # (byte-identical to the ROM → safe on real hardware, and smaller than a greedy re-encode,
     # so edits usually still FIT with no section shift). Only edited sels are re-encoded.
-    # (mvc2-sh4-re-expert: the ROM decoder loc_8c0354c0 has no source-length / backref-underflow
+    # (the ROM decoder loc_8c0354c0 has no source-length / backref-underflow
     #  guard, so re-encoding untouched parts is a needless divergence risk.)
     parts = []                                      # (hdr, blob, dl, edited_px_or_None)
     for i in range(nParts):

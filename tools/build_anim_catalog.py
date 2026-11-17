@@ -3,7 +3,7 @@
 (no emulator, no ROM). Output web/anim/PL{HEX}.json = { char_id, name, groups: { "<g>": { name,
 subanims: [ { cells: [ {sprite_id, duration, ender, render_extra, hitbox_group} ] } ] } } }.
 
-Grounded (mvc2-sh4-re-expert): the 20-byte cell carries sprite_id@+0x04 (u16 LE), duration@+0x02,
+Grounded: the 20-byte cell carries sprite_id@+0x04 (u16 LE), duration@+0x02,
 Ender@+0x03 (0x80=end), render_extra@+0x11, hitbox_group@+0x12. The cached HTML `<input value="HEX40">`
 is the authoritative 20 cell bytes (the distilled JSON dropped sprite_id). atlas key = sprite_id & 0x7FFF;
 0xFFFF = blank (hold/skip). A group = several sub-anims, split on Ender 0x80.
@@ -59,7 +59,7 @@ def build_char(plx, cache, data, out):
         g = int(m.group(1))
         subs = parse_group_file(f)
         if not subs: continue
-        # classify by sprite_id range (mvc2-sh4-re-expert): body ~61-160, special/projectile ~180+,
+        # classify by sprite_id range: body ~61-160, special/projectile ~180+,
         # effect = any raw bit15 (0x8000 per-part-scale dispatch). 0xFFFF = blank, skip.
         sids = [k["sprite_id"] for s in subs for k in s if k["sprite_id"] != 0xFFFF]
         masked = [x & 0x7FFF for x in sids]
@@ -81,8 +81,8 @@ def build_char(plx, cache, data, out):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--char", default="all", help="PL00 | all")
-    ap.add_argument("--cache", default="../maplecast-flycast/tools/re_kb/ingest/cache/anotak")
-    ap.add_argument("--data", default="../maplecast-flycast/tools/re_kb/ingest/data")
+    ap.add_argument("--cache", required=True, help="folder of cached anotak animation pages")
+    ap.add_argument("--data", required=True, help="folder of the character id / name tables")
     ap.add_argument("--out", default="web/anim")
     a = ap.parse_args()
     if a.char.lower() == "all":

@@ -8,7 +8,7 @@ GFX_DATA_00.BIN, decodes EVERY selector with the validated byte-oriented decoder
 emits a complete sel-keyed part atlas for the off-SH4 emitter — NO emulator capture,
 NO build host, NO play-walk. All parts come FREE from the disc.
 
-Validated BIT-EXACT vs 6 live captures (_ryu_capture/PL00_raw_{0001,0013,0024,0034,
+Validated BIT-EXACT vs 6 live captures (a private capture set: PL00_raw_{0001,0013,0024,0034,
 0061,0127}.bin) and all 1533 Ryu sels decode clean (1.93M px, 0 fail).
 
 DECODER (loc_8c0354c0, register contract r4=src=part_base+4, r5=dest_len, r6=dest_base,
@@ -37,7 +37,7 @@ load-decode buffer 0x0CE60000, but that buffer holds texels in PVR twiddle order
 format table). The detwiddle uses the FULL part dims (bcx=log2(W), bcy=log2(H);
 twop = detw[0][bcy][x] + detw[1][bcx][y]) — NOT a run of min(w,h) square blocks (that
 square variant stripes non-square parts). Confirmed: sel 1 (torso) decodes coherent vs
-_ryu_capture/decoded_0001.png (decode_flycast.py swapXY=False — the CHARQ-validated path
+a private capture set: decoded_0001.png (decode_flycast.py swapXY=False — the capture-validated path
 that produced the recognizable char_tight.png Ryu).
 
 OUTPUT (operator-local, ROM-derived, gitignored — scp-only, NEVER git):
@@ -101,11 +101,11 @@ def part_bytes_needed(W, H, pal8):
     return (W * H) if pal8 else (W * H) // 2
 
 
-# ---- PVR PAL4 detwiddle (flycast texconv.cpp port, CHARQ-validated) ----------
+# ---- PVR PAL4 detwiddle (flycast texconv.cpp port, capture-validated) ----------
 # Ports twiddle_slow (texconv.cpp:37), the detwiddle table (69), twop (169) and
 # ConvertTwiddlePal4 (289). The texels are stored TWIDDLED over the FULL W×H part
 # (bcx=log2 W, bcy=log2 H) — NOT a run of min(W,H) square blocks. Validated
-# swapXY=False vs _ryu_capture/decoded_0001.png (the recognizable char_tight Ryu).
+# swapXY=False vs a private capture set: decoded_0001.png (the recognizable char_tight Ryu).
 def _twiddle_slow(x, y, x_sz, y_sz):
     rv = 0; sh = 0; x_sz >>= 1; y_sz >>= 1
     while x_sz != 0 or y_sz != 0:
@@ -176,12 +176,12 @@ def decode_part(gfx1, sel, offs, end_of):
         idx = bytearray(raw[:W * H])               # PAL8: index bytes, linear
     else:
         idx = detwiddle_pal4(raw, W, H)            # PAL4: TWIDDLED -> linear indices
-    # FULL TILE SPAN (2026-06-11, finding:emitter_geom_validated — supersedes the
+    # FULL TILE SPAN (2026-06-11 — supersedes the
     # 2026-06-10 logical-crop). The header is [lw][lh][sw][sh] = logical vs STORAGE tile
     # dims. The live engine (bank03 loc_8c0344d4 -> tile loop loc_8c0345c4/loc_8c03478e)
     # draws the FULL STORAGE tile span sw*8 x sh*8 as the part's SCREEN FOOTPRINT, and
     # the cumulative pen anchors the FULL-SPAN top-left. NUMERIC PROOF (validate_emitter_
-    # geom.py vs _ryu_capture/probe_body_uv.json, Ryu sid 68, 6 sels): full-span W/H gives
+    # geom.py vs a private capture set: probe_body_uv.json, Ryu sid 68, 6 sels): full-span W/H gives
     # dW=dH=0.00px AND dY=0.00 (relative) for ALL sels incl multi-tile 265/278/279; the
     # logical crop (lw*8 x lh*8) is WRONG (sel278 171 vs true 274 tall, sel265/279 51 vs 69).
     #   The earlier limb-crop fix was RIGHT about the PIXELS (100% of non-transparent texels

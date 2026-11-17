@@ -3,7 +3,7 @@
 // The whole editor (decode + palette/pixel edit + byte-faithful bake) already runs in
 // JavaScript inside the WebView — see web/rom-reader.mjs and web/rom-bake.mjs. The ONLY
 // thing a browser can't do is real filesystem I/O on the user's ~1.2 GB track03.bin ROM.
-// These four commands provide exactly that, as positioned range reads/writes (seek +
+// These five commands provide exactly that, as positioned range reads/writes (seek +
 // read_exact / write_all) so the huge file is never read or rewritten whole.
 //
 // web/platform.mjs wraps these in an object that duck-types the File System Access API,
