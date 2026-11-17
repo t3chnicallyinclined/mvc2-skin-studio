@@ -10,7 +10,7 @@ All notable changes to MvC2 Skin Studio. Format loosely follows
   **projects** that **autosave** continuously and persist between launches (in the app / browser).
   Create, rename, switch, and delete projects to keep different skins separate, and **reopen right
   where you left off**. Each project keeps a rolling **version history** you can **roll back to**
-  at any time. Backed by a small, unit-tested store (`web/projects.mjs`); a "state" is just the
+  at any time. Backed by a small store written to be testable headless (`web/projects.mjs`); a "state" is just the
   edits (palette diffs + painted parts + layer order), never sprite/ROM bytes, so keeping 30
   versions stays cheap. The old 💾/📂 buttons are now **export / import** of a portable project
   file (for backups or sharing) alongside the new in-app projects.

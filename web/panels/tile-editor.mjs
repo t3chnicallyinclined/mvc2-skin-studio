@@ -611,7 +611,7 @@ export class SkinStudio {
     return null;
   }
   // Composite a full frame (sprite_id `sid`) scaled-to-fit into a thumbnail and OUTLINE part `sel`.
-  // Uses the same placement + engine-z (reverse record order, re_kb finding:per_part_depth_zinvW)
+  // Uses the same placement + engine-z (reverse record order)
   // as _composite so the thumbnail matches the editor exactly.
   _drawContextThumb(canvas, sid, sel) {
     const recs = (this.asm[String(sid & 0x7fff)] || this.asm[String(sid)]); if (!recs || !this.bundle) return;
@@ -917,7 +917,7 @@ export class SkinStudio {
     // layer switch: SOLO shows only the active layer; otherwise bring it to the front so its
     // pixels/box win — lets you paint a part that another part (e.g. a cape) is drawn over.
     const bias = this._zBias || {};
-    // ENGINE TRUTH (re_kb finding:per_part_depth_zinvW): parts layer by Z=1/W — the FIRST-submitted
+    // ENGINE TRUTH: parts layer by Z=1/W — the FIRST-submitted
     // part is FRONT-most, the last is REAR-most. So paint in REVERSE record order (record 0 ends on top).
     let drawList = [...pl].reverse().sort((a, b) => (bias[a.sel] || 0) - (bias[b.sel] || 0));   // + manual z-bias, stable
     if (applyActive && this._activeLayer != null)

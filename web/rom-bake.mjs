@@ -1,5 +1,6 @@
 // rom-bake.mjs — browser-native MVC2 sprite bake. Pure-JS port of tools/gfx1_lzss.py +
-// rebuild_gfx1.py + part_png.py + bake_skin.py, validated byte-for-byte against them in Node.
+// rebuild_gfx1.py + part_png.py + bake_skin.py, validated byte-for-byte against them in Node
+// (that comparison was run by hand; the script is not in this repository).
 // No DOM here — these are pure functions over Uint8Array so they run in Node (validation) AND
 // the browser. The File System Access glue lives in tile-editor.mjs.
 //
