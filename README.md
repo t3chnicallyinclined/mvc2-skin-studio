@@ -320,3 +320,9 @@ See [CHANGELOG.md](CHANGELOG.md) for what's new.
 MvC2 and all Dreamcast/Naomi game data are copyrighted by their owners. This project ships
 **no** game data and is for use with a disc **you legally own**. Don't distribute ROMs,
 extracted sprites, or baked discs.
+
+## License
+
+MIT. See [LICENSE](LICENSE). The palette names in `web/palnames/` come from PalMod and the
+frame-data tables in `web/anim/` from the anotak corpus; both are credited above and keep their
+own terms.
